@@ -1,0 +1,22 @@
+# verity — ground truth for verifying empirical result-claims.
+# Edit these to your domain; the gate reads this file. This default set encodes
+# basic empirical hygiene that catches the most common self-deceptions.
+
+thresholds:
+  hard_min_sample: 30          # below this a result is noise -> CRITICAL (REFUSE)
+  min_sample: 100              # below this it is thin -> WARN
+  suspicious_accuracy: 0.65    # above this, auto-suspect (most real edges are small)
+  require_out_of_sample: true  # must be validated on a holdout, not just in-sample
+
+facts:
+  - id: no_look_ahead
+    severity: CRITICAL
+    domain_keywords: ["backtest", "signal", "forecast", "trading", "predict"]
+    canonical_terms: ["walk-forward", "out-of-sample", "holdout", "no look-ahead", "causal"]
+    forbidden_terms: ["uses future", "look-ahead", "peeked", "in-sample only", "fit on all data"]
+
+  - id: realistic_fills
+    severity: HIGH
+    domain_keywords: ["fill", "execution", "slippage", "order"]
+    canonical_terms: ["liquid", "slippage-modeled", "realistic fills"]
+    forbidden_terms: ["assume instant fill", "no slippage", "perfect fill"]
