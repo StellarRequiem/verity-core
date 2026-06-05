@@ -1,0 +1,38 @@
+name: "verity-check"
+description: "Verify empirical result-claims (sample/leakage/significance/selection hygiene). Fails CI on any untrustworthy claim."
+author: "StellarRequiem"
+branding:
+  icon: "check-circle"
+  color: "green"
+
+inputs:
+  claims:
+    description: "Path to a JSONL backlog of result-claims (one JSON object per line)."
+    required: true
+  truth:
+    description: "Optional path to a ground-truth YAML (thresholds + facts)."
+    required: false
+    default: ""
+  version:
+    description: "verity-core git ref to install (branch, tag, or commit)."
+    required: false
+    default: "main"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+    - name: Install verity-core
+      shell: bash
+      run: pip install "verity-core @ git+https://github.com/StellarRequiem/verity-core.git@${{ inputs.version }}"
+    - name: Verify result-claims
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.truth }}" ]; then
+          verity check-batch "${{ inputs.claims }}" --truth "${{ inputs.truth }}"
+        else
+          verity check-batch "${{ inputs.claims }}"
+        fi
