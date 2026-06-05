@@ -13,7 +13,9 @@ As an MCP tool (any agent can call the gate to check itself)::
     verity-mcp        # console script — register in .mcp.json
 """
 from .audit import AuditChain, entry_hash
-from .gate import check, format_block, load_truth
+from .gate import check, format_block, format_verify_block, load_truth
+from .verify import verify
 
 __version__ = "0.1.0"
-__all__ = ["check", "load_truth", "format_block", "AuditChain", "entry_hash"]
+__all__ = ["check", "load_truth", "format_block", "format_verify_block", "verify",
+           "AuditChain", "entry_hash"]

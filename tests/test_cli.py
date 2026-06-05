@@ -1,7 +1,13 @@
 """The verity CLI gates result-claims and exits on the worst verdict (0 PASS · 1 WARN · 2 REFUSE)."""
 import json
+from pathlib import Path
 
-from verity.cli import main
+import pytest
+
+from verity.cli import _load_json_arg, _load_sources, main
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BENCHMARK = REPO_ROOT / "eval" / "benchmark.jsonl"
 
 
 def test_check_single_pass_and_refuse(capsys):
@@ -47,3 +53,80 @@ def test_check_batch_flags_a_disclosed_but_insignificant_result(tmp_path, capsys
          "leakage_checked": True, "z": 1.05, "n_comparisons": 4}) + "\n", encoding="utf-8")
     rc = main(["check-batch", str(backlog)])
     assert rc == 1                                   # WARN — not significant + best-of-N selection
+
+
+# ── `verity verify` — the multi-dimension agent entrypoint ────────────────────
+def test_verify_honest_claim_passes(capsys):
+    rc = main(["verify", "--claim",
+               '{"name":"honest","accuracy":0.51,"sample_size":300,"out_of_sample":true,'
+               '"leakage_checked":true,"text":"walk-forward out-of-sample no look-ahead causal"}'])
+    out = capsys.readouterr().out
+    assert "Dimensions:" in out and "Verdict: PASS" in out
+    assert rc == 0
+
+
+def test_verify_evidence_mismatch_refuses_with_exit_2(capsys):
+    # claims 72% but the recomputed evidence says 58% → fabrication-class CRITICAL → REFUSE
+    rc = main(["verify",
+               "--claim", '{"name":"inflated","accuracy":0.72,"sample_size":400,'
+                          '"out_of_sample":true,"leakage_checked":true}',
+               "--evidence", '{"accuracy":0.58}',
+               "--sources", "recomputed.csv"])
+    out = capsys.readouterr().out
+    assert "evidence" in out and "REFUSE" in out
+    assert rc == 2
+
+
+def test_verify_prior_sign_flip_refuses(capsys):
+    rc = main(["verify",
+               "--claim", '{"name":"edge","edge":0.04,"sample_size":400,'
+                          '"out_of_sample":true,"leakage_checked":true}',
+               "--prior", '{"name":"edge","edge":-0.04}'])
+    assert rc == 2
+    assert "sign_flip" in capsys.readouterr().out
+
+
+def test_verify_reads_args_from_files(tmp_path, capsys):
+    claim = tmp_path / "claim.json"
+    claim.write_text(json.dumps({"accuracy": 0.55, "sample_size": 400,
+                                 "out_of_sample": True, "leakage_checked": True}), encoding="utf-8")
+    ev = tmp_path / "ev.json"
+    ev.write_text(json.dumps({"accuracy": 0.55}), encoding="utf-8")
+    rc = main(["verify", "--claim-file", str(claim), "--evidence", f"@{ev}"])
+    assert rc == 0                                   # agreeing evidence, clean
+
+
+def test_verify_malformed_json_arg_errors_loudly():
+    with pytest.raises(ValueError):
+        main(["verify", "--claim", '{"accuracy":0.5}', "--evidence", "{not json}"])
+
+
+def test_load_json_arg_inline_and_file(tmp_path):
+    assert _load_json_arg('{"a":1}') == {"a": 1}
+    assert _load_json_arg("[1,2,3]") == [1, 2, 3]
+    assert _load_json_arg(None) is None
+    f = tmp_path / "x.json"
+    f.write_text('{"k":"v"}', encoding="utf-8")
+    assert _load_json_arg(f"@{f}") == {"k": "v"}
+
+
+def test_load_sources_array_or_comma():
+    assert _load_sources("a,b, c") == ["a", "b", "c"]
+    assert _load_sources('["x","y"]') == ["x", "y"]
+    assert _load_sources(None) is None
+    assert _load_sources("") == []
+
+
+# ── `verity eval` — the regression harness, behind the CLI ────────────────────
+def test_eval_subcommand_runs_shipped_benchmark(capsys):
+    rc = main(["eval"])
+    out = capsys.readouterr().out
+    assert "CIRCULAR benchmark" in out                # honesty banner ships
+    assert "TOTAL" in out
+    assert rc == 0                                     # shipped set is fully consistent
+
+
+def test_eval_subcommand_accepts_a_path(capsys):
+    rc = main(["eval", str(BENCHMARK)])
+    assert rc == 0
+    assert "not an external benchmark" in capsys.readouterr().out

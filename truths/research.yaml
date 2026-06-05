@@ -10,4 +10,6 @@ thresholds:
   require_confidence_interval: true   # a point estimate without an interval is incomplete
   min_z: 2.0
   max_p: 0.05
+  min_effect_size: 0.1                # a significant-but-tiny effect is large-n p-hacking — reject
+  max_ci_width: 1.0                   # a CI wider than the whole [0,1] metric range is uninformative
 facts: []

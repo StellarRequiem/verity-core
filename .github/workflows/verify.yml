@@ -16,6 +16,10 @@ jobs:
         run: pip install -e . pytest pyyaml
       - name: Unit tests
         run: pytest -q
+      # Regression gate: every eval case must stay consistent (catch_rate 100% / FP-rate 0%).
+      # A future edit that silently moves a check off those marks fails CI here.
+      - name: Eval harness (regression gate)
+        run: verity eval
       # Self-test the CLI gate on the clean example backlog — must exit 0 (all PASS).
       - name: CLI self-test (clean backlog passes the gate)
         run: verity check-batch examples/claims.jsonl

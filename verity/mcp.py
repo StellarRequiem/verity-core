@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 from .audit import AuditChain
-from .gate import check, format_block, load_truth
+from .gate import check, format_block, format_verify_block, load_truth
 
 _DEFAULT_TRUTH = Path(__file__).resolve().parent / "truth.yaml"
 
@@ -37,6 +37,21 @@ def build_server():
         """
         truth = load_truth(truth_path or _DEFAULT_TRUTH)
         return format_block(claim, check(claim, truth))
+
+    @server.tool()
+    def verify(claim: dict, evidence: dict | None = None, prior: dict | None = None,
+               sources: list | None = None, truth_path: str = "") -> str:
+        """Verify a claim across all applicable dimensions before acting on it.
+
+        EMPIRICAL hygiene always; EVIDENCE-match if `evidence` is given (deterministic
+        field reconciliation, not fuzzy); CONSISTENCY vs `prior` if given. Returns a
+        multi-dimension VERIFIED block (overall REFUSE | WARN | PASS). This is the
+        recommended agent entrypoint; `verify_claim` remains for empirical-only checks.
+        """
+        truth = load_truth(truth_path or _DEFAULT_TRUTH)
+        from .verify import verify as _verify
+        return format_verify_block(claim, _verify(
+            claim, evidence=evidence, prior=prior, sources=sources, truth=truth))
 
     @server.tool()
     def gate_thresholds(truth_path: str = "") -> str:
