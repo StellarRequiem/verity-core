@@ -102,11 +102,12 @@ result-claims with their real statistics **and an independent label of whether t
 | claims that **failed** to replicate | **33%** |
 | claims that **replicated** | **23%** |
 
-A claim that failed to replicate is **~1.66× more likely to be flagged** than one that held up —
-real, external, non-circular signal, in the direction the replication literature predicts (driven by
-under-power + small samples). Honestly modest: a statistics gate sees only the disclosed numbers, so
-it catches the *statistically-detectable* slice of failures, not fraud or context-sensitivity. It's a
-CI gate — a change that destroys this signal fails the build.
+A failed-to-replicate claim is **~1.66× more likely to be flagged** (+10pp), in the direction the
+literature predicts. **But — held to its own bar — the gap is not yet significant** (n=132, z=1.30,
+p=0.19): `verity verify` on *this very result* returns WARN (*"underpowered, needs ~762"*). So it's a
+**suggestive trend, not a proven signal** — the full ~2,000-case corpus is the properly-powered test.
+The harness reports its own (in)significance and gates CI on direction only. *A verifier honest enough
+to flag its own under-powered claim is the point.*
 
 ## As a CLI / CI gate
 

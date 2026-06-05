@@ -29,14 +29,21 @@ Scored under `replication-truth.yaml` (verity's defaults; the ML-only checks dis
 | claims that **FAILED** to replicate | **33%** |
 | claims that **REPLICATED** | **23%** |
 
-**A claim that failed to replicate is ~1.66× more likely to be flagged than one that held up
-(+10 percentage points).** The signal runs in the right direction and is driven by exactly the
-predictors the replication literature blames — under-power, small samples, small effects.
+A failed-to-replicate claim is **~1.66× more likely to be flagged** than one that held up
+(+10 pp), driven by the predictors the literature blames (under-power, small samples). **But we
+hold our own result to our own bar: that gap is NOT statistically significant at n=132**
+(two-proportion z = 1.30, p = 0.19). Run `verity verify` on *this very claim* and it returns
+**WARN** — *"z 1.30 < 2.0; n=132 underpowered, needs ~762 for 80% power."* The tool flags its own
+result as not-yet-established. So we do **not** claim verity "works" on replication — only that the
+trend is **suggestive**, and the properly-powered test requires the full ~2,000-case corpus.
 
 ## What this does and does not show — honestly
 
-- **It is real, external, and non-circular.** The labels come from independent replications, not from
-  verity's rules. This is genuine evidence the checks track real trustworthiness.
+- **External and non-circular — but not yet significant.** The labels come from independent
+  replications, not verity's rules, so the *method* is sound and the direction is right. But the
+  +10pp gap is under-powered at n=132 (z=1.30, p=0.19): a suggestive trend, not established evidence.
+  The full ~2,000-case corpus is the properly-powered test. We say so rather than overclaim — and
+  the harness flags its own result.
 - **The effect is modest, by nature.** verity sees only the *disclosed statistics*. Replication
   failure also stems from causes a stats-gate cannot see — questionable research practices, fraud,
   context-sensitivity, publication bias. verity catches the *statistically-detectable* slice

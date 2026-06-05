@@ -42,8 +42,17 @@ def run(data_path=_DEFAULT_DATA, truth_path=_DEFAULT_TRUTH) -> dict:
     a, b = failed["flagged"], failed["n"] - failed["flagged"]
     c, d = repl["flagged"], repl["n"] - repl["flagged"]
     odds = (a * d) / (b * c) if (b * c) else float("inf")
-    return {"n": failed["n"] + repl["n"], "n_failed": failed["n"], "n_replicated": repl["n"],
-            "catch": catch, "false_alarm": fp, "separation": catch - fp, "odds_ratio": odds}
+    # Two-proportion z-test: is this catch>FP gap distinguishable from chance at THIS n? We hold our
+    # own result to the same bar the gate holds a claim to — anything else is hypocrisy.
+    import math as _m
+    n1, n2 = failed["n"], repl["n"]
+    pool = (a + c) / (n1 + n2) if (n1 + n2) else 0.0
+    se = _m.sqrt(pool * (1 - pool) * (1 / n1 + 1 / n2)) if (n1 and n2 and 0 < pool < 1) else 0.0
+    z = (catch - fp) / se if se else 0.0
+    p_val = 2 * (1 - 0.5 * (1 + _m.erf(abs(z) / _m.sqrt(2)))) if se else 1.0
+    return {"n": n1 + n2, "n_failed": n1, "n_replicated": n2,
+            "catch": catch, "false_alarm": fp, "separation": catch - fp, "odds_ratio": odds,
+            "z": z, "p_value": p_val, "significant": p_val < 0.05}
 
 
 _BANNER = (
@@ -68,10 +77,18 @@ def main(argv=None) -> int:
     print(f"  flag-rate on FAILED:     {r['catch']:.0%}")
     print(f"  flag-rate on REPLICATED: {r['false_alarm']:.0%}")
     print(f"  separation: {r['separation']:+.0%}    odds (failed vs replicated flagged): {r['odds_ratio']:.2f}x")
-    ok = r["separation"] > 0 and r["odds_ratio"] > 1.0
-    print("  -> verity flags real replication FAILURES more than survivors (external signal intact)."
-          if ok else "  -> NO external discrimination — regression (see SOURCES.md).")
-    return 0 if ok else 1
+    print(f"  two-proportion z = {r['z']:.2f}  ·  p = {r['p_value']:.2f}  ·  "
+          f"{'SIGNIFICANT' if r['significant'] else 'NOT significant'} at n={r['n']}")
+    direction = r["separation"] > 0 and r["odds_ratio"] > 1.0
+    if direction and r["significant"]:
+        print("  -> verity flags real replication FAILURES more than survivors — significant.")
+    elif direction:
+        print("  -> SUGGESTIVE: the trend is in the right direction but UNDER-POWERED at this n — by")
+        print("     verity's own bar (z < 2) it is NOT yet established. The full ~2,000-case FORRT")
+        print("     corpus is the properly-powered test. We hold our own claim to the standard.")
+    else:
+        print("  -> NO external discrimination — regression (see SOURCES.md).")
+    return 0 if direction else 1                     # CI guard = direction intact (not a sig claim)
 
 
 if __name__ == "__main__":  # pragma: no cover
