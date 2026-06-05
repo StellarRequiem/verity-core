@@ -76,4 +76,5 @@ pytest
 
 ## License
 
-Apache-2.0. Built by [@StellarRequiem](https://github.com/StellarRequiem).
+Apache-2.0. Built by **Alex Price** ([@StellarRequiem](https://github.com/StellarRequiem) ·
+[𝕏](https://x.com/StellarRequiem)).

@@ -68,3 +68,5 @@ honesty is the point.
 
 Apache-2.0. Also a Python library and an MCP tool — so an AI agent can verify its own claims before
 believing them. → [**verity-core**](https://github.com/StellarRequiem/verity-core)
+
+— *Alex Price · [@StellarRequiem](https://x.com/StellarRequiem)*
