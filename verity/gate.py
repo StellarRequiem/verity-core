@@ -78,6 +78,64 @@ def _match_facts(text: str, facts: list[dict]) -> list[dict]:
     return out
 
 
+def _num(v):
+    """float(v) or None — never raises, so a malformed field is simply not scored."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _rigor(claim: dict, th: dict) -> list[dict]:
+    """Statistical-rigor checks for an empirical result-claim.
+
+    Each fires ONLY when the claim discloses the relevant field (or the truth config requires
+    it), so a sparse claim is never spuriously flagged — these *add* scrutiny when there is
+    something concrete to scrutinise:
+
+      * ``significance``        — a disclosed z-score / p-value must actually clear the bar.
+      * ``multiple_comparisons``— "best of N tries" inflates significance unless corrected.
+      * ``base_rate``           — accuracy must beat the majority-class frequency by a real margin.
+      * ``confidence_interval`` — (opt-in via config) a point estimate should carry an error bar.
+
+    All are at most HIGH severity (a rigor gap is a WARN, not the noise-floor REFUSE).
+    """
+    issues: list[dict] = []
+    acc = _num(claim.get("accuracy", claim.get("win_rate")))
+
+    # significance — a reported effect must be statistically distinguishable from chance
+    z = _num(claim.get("z", claim.get("z_vs_50", claim.get("z_score"))))
+    if z is not None and abs(z) < th.get("min_z", 2.0):
+        issues.append({"check": "significance", "severity": "HIGH",
+                       "detail": f"z {z:g} < {th.get('min_z', 2.0)} — not statistically distinguishable from chance"})
+    p = _num(claim.get("p_value", claim.get("p")))
+    if p is not None and p > th.get("max_p", 0.05):
+        issues.append({"check": "significance", "severity": "HIGH",
+                       "detail": f"p {p:g} > {th.get('max_p', 0.05)} — not significant"})
+
+    # multiple comparisons — best-of-N selection inflates any significance unless corrected
+    n_comp = _num(claim.get("n_comparisons", claim.get("strategies_tried", claim.get("variants_tried"))))
+    if n_comp is not None and n_comp > 1 and not claim.get("multiplicity_corrected"):
+        issues.append({"check": "multiple_comparisons", "severity": "MEDIUM",
+                       "detail": f"best of {int(n_comp)} comparisons, no multiplicity correction — "
+                                 "significance is selection-inflated (e.g. apply Bonferroni)"})
+
+    # base rate — accuracy has to beat the majority class by a real margin, or it is no lift
+    br = _num(claim.get("base_rate"))
+    if br is not None and acc is not None and acc <= br + th.get("min_lift", 0.0):
+        issues.append({"check": "base_rate", "severity": "HIGH",
+                       "detail": f"accuracy {acc:g} ≤ base rate {br:g} (+{th.get('min_lift', 0.0)} lift) — "
+                                 "no real lift over the majority class"})
+
+    # confidence interval — opt-in: a point estimate should carry an error bar
+    has_ci = any(claim.get(k) is not None for k in ("ci", "ci_95", "confidence_interval", "std_error", "stderr"))
+    if th.get("require_confidence_interval", False) and acc is not None and not has_ci:
+        issues.append({"check": "confidence_interval", "severity": "MEDIUM",
+                       "detail": "point estimate with no confidence interval / error bar reported"})
+
+    return issues
+
+
 def check(claim: dict, truth: dict) -> dict:
     """Score a claim. Returns ``{'verdict': REFUSE|WARN|PASS, 'issues': [...]}``."""
     th = truth.get("thresholds", {})
@@ -85,6 +143,7 @@ def check(claim: dict, truth: dict) -> dict:
     text = claim.get("text", "") + " " + json.dumps(
         {k: v for k, v in claim.items() if k != "text"})
     issues = ([{"source": "structural", **s} for s in _structural(claim, th)]
+              + [{"source": "rigor", **r} for r in _rigor(claim, th)]
               + [{"source": "ground_truth", **c} for c in _match_facts(text, facts)])
     worst = max((_SEV.get(i["severity"], 0) for i in issues), default=0)
     verdict = ("REFUSE" if worst >= _SEV["CRITICAL"]
