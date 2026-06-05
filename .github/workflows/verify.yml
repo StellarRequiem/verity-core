@@ -20,6 +20,10 @@ jobs:
       # A future edit that silently moves a check off those marks fails CI here.
       - name: Eval harness (regression gate)
         run: verity eval
+      # External-validity gate: verity must keep flagging REAL replication failures more than
+      # survivors (FORRT/SCORE). A change that destroys the external signal fails CI here.
+      - name: External-validity gate (real replication outcomes)
+        run: verity eval-external
       # Self-test the CLI gate on the clean example backlog — must exit 0 (all PASS).
       - name: CLI self-test (clean backlog passes the gate)
         run: verity check-batch examples/claims.jsonl

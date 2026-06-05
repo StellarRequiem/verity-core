@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from . import eval as _eval
+from . import external_eval as _external_eval
 from .gate import check, format_block, format_verify_block, load_truth
 from .verify import verify
 
@@ -126,6 +127,11 @@ def _cmd_eval(args) -> int:
     return _eval.main([args.path] if args.path else [])
 
 
+def _cmd_eval_external(args) -> int:
+    """Score the gate against REAL replication outcomes (external, non-circular)."""
+    return _external_eval.main([args.path] if args.path else [])
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
         prog="verity",
@@ -165,6 +171,12 @@ def main(argv=None) -> int:
     pe.add_argument("path", nargs="?", metavar="BENCHMARK.jsonl",
                     help="optional benchmark path (defaults to the shipped eval/benchmark.jsonl)")
     pe.set_defaults(func=_cmd_eval)
+
+    px = sub.add_parser("eval-external", help="score the gate against REAL replication outcomes "
+                                              "(external / non-circular; FORRT-SCORE, CC-BY 4.0)")
+    px.add_argument("path", nargs="?", metavar="BENCHMARK.jsonl",
+                    help="optional path (defaults to eval/external/score-replication.jsonl)")
+    px.set_defaults(func=_cmd_eval_external)
 
     args = p.parse_args(argv)
     return args.func(args)

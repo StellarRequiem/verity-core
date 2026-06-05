@@ -76,7 +76,7 @@ def _structural(claim: dict, th: dict) -> list[dict]:
     if th.get("require_out_of_sample", True) and not _affirmed(claim.get("out_of_sample")):
         issues.append({"check": "out_of_sample", "severity": "HIGH",
                        "detail": "not validated out-of-sample / on a holdout"})
-    if not _affirmed(claim.get("leakage_checked")):
+    if th.get("require_leakage_check", True) and not _affirmed(claim.get("leakage_checked")):
         issues.append({"check": "leakage", "severity": "HIGH",
                        "detail": "look-ahead / leakage not affirmatively checked"})
     return issues

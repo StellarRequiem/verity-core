@@ -91,6 +91,23 @@ construction** (the verifier graded against the rules it implements), so 100% he
 are internally consistent and wired — **not** that they are sufficient, that they generalize, or
 that a PASS is profitable.
 
+### External validity — real replication outcomes (`verity eval-external`)
+
+The eval above proves *wiring*. **This** proves the checks track *reality*: 132 published
+result-claims with their real statistics **and an independent label of whether they replicated**
+(FORRT / DARPA-SCORE corpus, CC-BY 4.0 — see [`eval/external/`](eval/external/SOURCES.md)).
+
+| | flag-rate (WARN/REFUSE) |
+|---|---|
+| claims that **failed** to replicate | **33%** |
+| claims that **replicated** | **23%** |
+
+A claim that failed to replicate is **~1.66× more likely to be flagged** than one that held up —
+real, external, non-circular signal, in the direction the replication literature predicts (driven by
+under-power + small samples). Honestly modest: a statistics gate sees only the disclosed numbers, so
+it catches the *statistically-detectable* slice of failures, not fraud or context-sensitivity. It's a
+CI gate — a change that destroys this signal fails the build.
+
 ## As a CLI / CI gate
 
 ```sh

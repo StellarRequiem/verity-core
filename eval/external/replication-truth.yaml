@@ -1,0 +1,13 @@
+# Published-result domain pack — for an EXTERNAL claim (a reported effect from a paper), NOT an ML
+# pipeline. The ML-specific hygiene checks (out-of-sample, leakage) do not apply to a social-science
+# effect-size claim, so they are disabled; the discrimination comes only from the checks that DO
+# apply to a reported result: sample floors, significance, effect-size floor, and statistical power.
+#
+# These are verity's DEFAULTS — fixed BEFORE scoring the benchmark, not tuned to it. Tuning a truth
+# pack to flatter a benchmark would be exactly the p-hacking this tool exists to catch.
+thresholds:
+  require_out_of_sample: false      # N/A: a reported experimental effect, not a held-out ML metric
+  require_leakage_check: false       # N/A: not an ML pipeline
+  suspicious_accuracy: 1.0           # no accuracy field; these are standardized effect sizes
+  # hard_min_sample 30 · min_sample 100 · max_p 0.05 · min_z 2.0 · min_effect_size 0.1 · power defaults
+facts: []
