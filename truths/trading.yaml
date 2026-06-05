@@ -1,0 +1,16 @@
+# Domain pack: TRADING / QUANT signals.
+# Most real trading edges are SMALL — a strategy reporting a high win-rate is auto-suspect until
+# proven otherwise. Out-of-sample + leakage are non-negotiable, and a look-ahead "tell" in the
+# description is a hard refusal. (These are verity's library defaults, made explicit.)
+thresholds:
+  suspicious_accuracy: 0.65       # >0.65 win-rate on a directional signal — prove it isn't a leak
+  hard_min_sample: 30             # below 30 bets is pure noise (CRITICAL)
+  min_sample: 100
+  require_out_of_sample: true
+  min_z: 2.0                      # an edge needs to clear ~2 sigma vs chance
+facts:
+  - id: no_look_ahead
+    domain_keywords: [signal, backtest, strategy, return, trade, win-rate, sharpe]
+    canonical_terms: [walk-forward, out-of-sample, holdout, causal, no look-ahead]
+    forbidden_terms: [look-ahead, lookahead, future return, future price, peeking]
+    severity: CRITICAL

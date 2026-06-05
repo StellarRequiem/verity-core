@@ -1,0 +1,12 @@
+# Domain pack: SUPERVISED ML CLASSIFICATION.
+# Classifiers legitimately hit high accuracy, so we don't auto-suspect it — instead we lean on
+# real sample size, out-of-sample evaluation, leakage checks, and lift over the base rate (the
+# thing that catches a "98% accurate" model on data that's 98% one class).
+thresholds:
+  suspicious_accuracy: 0.999      # don't auto-suspect a high classifier accuracy
+  hard_min_sample: 100            # below this, the metric is noise (CRITICAL)
+  min_sample: 500                 # below this, it's thin (HIGH)
+  min_lift: 0.02                  # accuracy must beat the base rate by >=2 points
+  require_out_of_sample: true     # held-out / test-set evaluation required
+  min_z: 2.0
+facts: []

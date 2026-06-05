@@ -1,0 +1,12 @@
+# Domain pack: A/B TESTS / online experiments.
+# An A/B test IS its own holdout, so out-of-sample isn't the issue — under-powered samples and
+# non-significant "wins" are. Report a z-score or p-value; if you tried many variants, correct for
+# it (n_comparisons). Accuracy isn't the metric here, so it's not auto-suspected.
+thresholds:
+  suspicious_accuracy: 1.0        # A/B reports conversion/lift, not classifier accuracy
+  hard_min_sample: 1000           # below ~1k exposures, an effect is noise (CRITICAL)
+  min_sample: 10000               # real online tests need real traffic
+  require_out_of_sample: false    # the experiment is the holdout
+  min_z: 2.0                      # the lift must be statistically significant
+  max_p: 0.05
+facts: []

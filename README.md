@@ -40,7 +40,12 @@ Now any session has three tools:
 pip install "git+https://github.com/StellarRequiem/verity-core"
 verity check       --claim '{"accuracy":0.92,"sample_size":40}'   # one claim → REFUSE/WARN/PASS
 verity check-batch claims.jsonl                                   # a backlog → rolled-up verdict
+verity check-batch claims.jsonl --truth truths/trading.yaml       # tuned to your domain (see truths/)
 ```
+
+Ready-made **domain packs** live in [`truths/`](truths/) — `ml-classification`, `trading`,
+`ab-test`, `research` — so the same `0.72` is auto-suspect for a trading signal but fine for a
+classifier. Point `--truth` at one, or tune your own.
 The **exit code is the worst verdict** (`0` PASS · `1` WARN · `2` REFUSE), so it gates CI like a
 linter. Drop the bundled **GitHub Action** into any workflow:
 ```yaml

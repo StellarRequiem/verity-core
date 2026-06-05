@@ -1,0 +1,13 @@
+# Domain pack: RESEARCH / empirical papers.
+# Report effect sizes with significance AND a confidence interval; if you ran many comparisons,
+# correct for multiplicity. Out-of-sample / replication is expected. This pack is deliberately
+# strict — it is the bar a result should clear before it goes in an abstract.
+thresholds:
+  suspicious_accuracy: 0.999      # accuracy is one of many metrics; don't auto-suspect it
+  hard_min_sample: 30
+  min_sample: 100
+  require_out_of_sample: true     # held-out / replication expected
+  require_confidence_interval: true   # a point estimate without an interval is incomplete
+  min_z: 2.0
+  max_p: 0.05
+facts: []
