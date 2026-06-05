@@ -93,21 +93,22 @@ that a PASS is profitable.
 
 ### External validity — real replication outcomes (`verity eval-external`)
 
-The eval above proves *wiring*. **This** proves the checks track *reality*: 132 published
-result-claims with their real statistics **and an independent label of whether they replicated**
-(FORRT / DARPA-SCORE corpus, CC-BY 4.0 — see [`eval/external/`](eval/external/SOURCES.md)).
+The eval above proves *wiring*. **This** proves the checks track *reality*: **1,772 published
+result-claims** with their real statistics **and an independent replication label** (FORRT corpus,
+CC-BY 4.0 — see [`eval/external/`](eval/external/SOURCES.md)).
 
 | | flag-rate (WARN/REFUSE) |
 |---|---|
-| claims that **failed** to replicate | **33%** |
-| claims that **replicated** | **23%** |
+| claims that **failed** to replicate | **61%** |
+| claims that **replicated** | **53%** |
 
-A failed-to-replicate claim is **~1.66× more likely to be flagged** (+10pp), in the direction the
-literature predicts. **But — held to its own bar — the gap is not yet significant** (n=132, z=1.30,
-p=0.19): `verity verify` on *this very result* returns WARN (*"underpowered, needs ~762"*). So it's a
-**suggestive trend, not a proven signal** — the full ~2,000-case corpus is the properly-powered test.
-The harness reports its own (in)significance and gates CI on direction only. *A verifier honest enough
-to flag its own under-powered claim is the point.*
+verity flags a failed-to-replicate claim **significantly more often** than a survivor — odds
+**1.41×**, **z = 3.51, p < 0.001** (n = 1,772). Real, external, *significant* evidence the checks
+track real trustworthiness. The honest arc is the point: the 132-case subset only *hinted* at this
+(z=1.30, p=0.19) and `verity verify` flagged **our own claim** as under-powered; we got the power and
+it held. And significant ≠ large — `verity verify` on the result **passes significance but WARNs the
+effect is modest** (1.41×). *A verifier that flags its own claim, confirms it, then refuses to oversell
+it — that's the holotype.*
 
 ## As a CLI / CI gate
 

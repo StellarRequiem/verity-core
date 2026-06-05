@@ -15,7 +15,7 @@ from pathlib import Path
 from .gate import check, load_truth
 
 _ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_DATA = _ROOT / "eval" / "external" / "score-replication.jsonl"
+_DEFAULT_DATA = _ROOT / "eval" / "external" / "fred-replication.jsonl"
 _DEFAULT_TRUTH = _ROOT / "eval" / "external" / "replication-truth.yaml"
 
 # Label / metadata fields — NOT part of the claim the gate scores.
