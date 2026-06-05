@@ -1,0 +1,2 @@
+{"name": "btc-momentum", "win_rate": 0.52, "sample_size": 500, "out_of_sample": true, "leakage_checked": true, "text": "daily directional, walk-forward holdout, no look-ahead, causal"}
+{"name": "sentiment-baseline", "accuracy": 0.61, "sample_size": 2000, "out_of_sample": true, "leakage_checked": true, "text": "out-of-sample, leakage-checked, modest lift over base rate"}

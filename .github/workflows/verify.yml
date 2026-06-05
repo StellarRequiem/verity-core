@@ -1,0 +1,21 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install
+        run: pip install -e . pytest pyyaml
+      - name: Unit tests
+        run: pytest -q
+      # Self-test the CLI gate on the clean example backlog — must exit 0 (all PASS).
+      - name: CLI self-test (clean backlog passes the gate)
+        run: verity check-batch examples/claims.jsonl

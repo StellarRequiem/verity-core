@@ -23,6 +23,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 verity-mcp = "verity.mcp:main"
+verity = "verity.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/StellarRequiem/verity-core"

@@ -34,11 +34,31 @@ Now any session has three tools:
 
 *An agent that can call `verify_claim` on its own findings is an agent that can refuse to fool you.*
 
+## As a CLI / CI gate
+
+```sh
+pip install "git+https://github.com/StellarRequiem/verity-core"
+verity check       --claim '{"accuracy":0.92,"sample_size":40}'   # one claim → REFUSE/WARN/PASS
+verity check-batch claims.jsonl                                   # a backlog → rolled-up verdict
+```
+The **exit code is the worst verdict** (`0` PASS · `1` WARN · `2` REFUSE), so it gates CI like a
+linter. Drop the bundled **GitHub Action** into any workflow:
+```yaml
+- uses: StellarRequiem/verity-core@main
+  with:
+    claims: results/claims.jsonl      # JSONL, one result-claim per line
+    truth:  results/truth.yaml         # optional ground-truth (thresholds + facts)
+```
+A pull request that claims "95% accuracy" now fails CI unless the claim clears the hygiene bar.
+
 ## What it checks
 
-- sample floors (too small = noise), suspicious accuracy (most real edges are small),
-- out-of-sample / holdout required, look-ahead affirmatively checked,
-- ground-truth facts: look-ahead tells, fantasy fills — contradictions flagged at severity.
+- **structural** — sample floors (too small = noise), suspicious accuracy (most real edges are
+  small), out-of-sample / holdout required, look-ahead affirmatively checked;
+- **statistical rigor** (only when the claim discloses it) — a reported z / p-value must be
+  significant, "best of N tries" must be multiplicity-corrected, accuracy must beat the base
+  rate, and (opt-in) a point estimate must carry a confidence interval;
+- **ground-truth facts** — look-ahead tells, fantasy fills — contradictions flagged at severity.
 
 Edit `truth.yaml` to your domain; the gate reads it live. A `PASS` means *trustworthy*, not *profitable* — and nothing is believed until it clears.
 
