@@ -54,12 +54,33 @@ fraud-detector claiming **98.5% accuracy** — and CI fails it:
 The base rate is 98%. The model barely beats "always predict not-fraud." A reviewer waves it
 through; CI does not. ([the PR →](https://github.com/StellarRequiem/verity-demo/pull/1))
 
+## But do the checks actually *work*?
+
+A linter is only worth running if its rules track reality. So I tested verity against **1,772
+published findings that were independently replicated** — the FORRT database (real effect sizes,
+sample sizes, p-values, each with a "did a high-powered replication succeed?" label). The question:
+does verity flag the claims that *failed* to replicate more than the ones that held up?
+
+**It does — significantly.** 78% of failures flagged vs 63% of survivors: odds **2.14×**,
+**z = 7.06, p ≈ 10⁻¹²** (n = 1,772). And *how* it got there is the part I'm proudest of. The base
+checks gave a modest 1.41×; mining the corpus showed a *marginal* p-value — just under 0.05 —
+predicts replication failure (42% vs 59%, confirmed out-of-sample), so I added one principled check
+for it, using the standard literature cut, **not** a knob tuned to the benchmark. That single check
+nearly doubled the discrimination. I also built a fitted model that scored as well and **threw it
+away** — a number tuned to one dataset is the exact thing a verifier exists to catch.
+
+It even flagged *its own* first result as under-powered, before I had enough data to claim it. A
+verifier that holds itself to its own bar — and earns its improvements honestly — is the whole idea.
+→ [**the full writeup**](https://github.com/StellarRequiem/verity-core/blob/main/docs/replication-benchmark.md)
+
 ## What it checks
 
 - **Structural:** sample floors, out-of-sample required, leakage affirmatively checked,
   suspicious-accuracy (tunable per domain).
-- **Statistical rigor** (when disclosed): a reported z / p-value must be significant; "best of N"
-  must be multiplicity-corrected; accuracy must beat the base rate; optional confidence-interval.
+- **Statistical rigor** (when disclosed): a reported z / p-value must be significant — and a
+  *marginal* one (just under 0.05) is flagged fragile (the check the replication test validated);
+  "best of N" must be multiplicity-corrected; an effect must clear a practical floor and its sample
+  must be powered for it; accuracy must beat the base rate.
 - Thresholds live in a `truth.yaml` you tune to your domain — the demo ships ML-classifier
   defaults; the library defaults are tuned for trading / quant edges.
 

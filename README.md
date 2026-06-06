@@ -4,6 +4,8 @@
 
 verity-core is the small, hard core of trustworthy AI: a **Reality Anchor** that refuses to believe a result-claim until it clears basic empirical hygiene, plus a **tamper-evident audit chain**. Use it as a library — or run it as an **MCP server** so any agent (including Claude) can call the gate on its own outputs *before* believing a number.
 
+> **Validated, not just asserted.** On **1,772 real scientific replications**, verity flags the claims that *failed* to replicate significantly more than the ones that held — odds **2.14×**, p ≈ 10⁻¹². A principled, held-out-validated check got it there; a corpus-fitted shortcut that scored as well was *declined*. → [the proof](docs/replication-benchmark.md)
+
 ## As a library
 
 ```sh
