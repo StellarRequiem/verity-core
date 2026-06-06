@@ -47,6 +47,25 @@ _JSON_FENCE = re.compile(
     re.IGNORECASE | re.MULTILINE | re.DOTALL,
 )
 
+# A parsed json block is a RESULT-CLAIM only if it carries at least one of these measurement /
+# statistics keys. A config or example block — an MCP ``mcpServers`` object, a dependency map, a
+# settings dict — is valid JSON but NOT a claim; extracting it would spuriously flag a README's
+# *configuration* as an unverified result. (Found in the wild: pointing verify-markdown at real
+# READMEs mis-read MCP-server config blocks as claims and WARNed them "not out-of-sample".)
+_CLAIM_KEYS = frozenset({
+    "accuracy", "win_rate", "value", "metric", "sample_size", "n", "p_value", "p",
+    "effect_size", "cohens_d", "d", "base_rate", "auc", "brier", "brier_score",
+    "precision", "recall", "f1", "f1_score", "z", "z_score", "z_vs_50", "sharpe",
+    "out_of_sample", "leakage_checked", "ci", "ci_95", "confidence_interval",
+    "std_error", "stderr", "n_comparisons", "strategies_tried", "variants_tried",
+})
+
+
+def _looks_like_claim(obj) -> bool:
+    """A json block is a result-claim only if it carries at least one measurement/statistics key —
+    so a config/example block is never mis-read as an (unverified) claim."""
+    return isinstance(obj, dict) and any(k in obj for k in _CLAIM_KEYS)
+
 
 def extract_claims(md_text: str) -> list[dict]:
     """Extract result-claims from the ```` ```json ```` fenced blocks of a markdown document.
@@ -66,7 +85,7 @@ def extract_claims(md_text: str) -> list[dict]:
             obj = json.loads(body)
         except ValueError:
             continue                      # malformed JSON in a json fence — skip, never crash
-        if isinstance(obj, dict):         # a claim is an object; a bare array/scalar is not one
+        if _looks_like_claim(obj):        # an object carrying a measurement — not a config/example block
             claims.append(obj)
     return claims
 

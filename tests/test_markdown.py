@@ -79,6 +79,26 @@ Then a good one:
     assert verify_markdown(md)[0]["verdict"] == "PASS"
 
 
+def test_config_blocks_are_not_mistaken_for_claims():
+    """A README's json CONFIG (an MCP `mcpServers` block, a dependency map) carries no measurement key
+    and must NOT be read as an unverified claim. Found in the wild: pointing verify-markdown at a real
+    Zig-docs MCP README mis-flagged its server-config blocks 'not out-of-sample'."""
+    md = """# Setup
+
+Add to your `.mcp.json`:
+
+```json
+{"mcpServers": {"zsm": {"command": "zsm", "args": ["--stdio"], "env": {"PORT": "8080"}}}}
+```
+"""
+    assert extract_claims(md) == []        # config json carries no measurement key → not a claim
+    assert verify_markdown(md) == []       # so there's nothing to verify
+    # …but a genuine claim sitting next to config IS still extracted
+    md2 = md + '\n```json\n{"accuracy": 0.6, "sample_size": 500}\n```\n'
+    got = extract_claims(md2)
+    assert len(got) == 1 and got[0]["accuracy"] == 0.6
+
+
 def test_extracts_multiple_blocks_in_document_order():
     md = """```json
 {"name": "first", "accuracy": 0.51, "sample_size": 300, "out_of_sample": true, "leakage_checked": true}
