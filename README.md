@@ -169,6 +169,13 @@ def test_model_card_is_honest():
                      "leakage_checked": True, "base_rate": 0.51})
 ```
 
+…or drop `@verified` on a function so it can't *return* an untrustworthy number:
+```python
+from verity import verified
+@verified
+def evaluate(): return {"accuracy": 0.99, "sample_size": 5}   # raises: verity REFUSE
+```
+
 ## What it checks
 
 - **structural** — sample floors (too small = noise), suspicious **and impossible** accuracy
