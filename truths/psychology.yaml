@@ -1,0 +1,58 @@
+# Domain pack: PSYCHOLOGY / EXPERIMENTAL BEHAVIORAL SCIENCE.
+# Psychology is the epicenter of the replication crisis — the Open Science Collaboration (2015)
+# reproduced ~36% of 100 published effects. The failures were not bad luck; they were predictable
+# from the methods section: HARKing (a hypothesis invented after seeing the data, then sold as
+# a-priori), p-hacking via researcher degrees of freedom (optional stopping, undisclosed exclusions,
+# the garden of forking paths), and effects measured on a single underpowered, unvalidated scale.
+# This pack encodes those hard-won lessons precisely and LOCKS THEM TIGHT: a real sample floor, a
+# significance bar, a marginal-p caution (just-significant is fragile), a practical-effect floor, and
+# a mandatory confidence interval. OOS / leakage are waived — a psychology experiment is prospective,
+# not an ML holdout — so the burden falls entirely on pre-registration, analytic discipline, and
+# adequately-powered, validated measurement.
+thresholds:
+  suspicious_accuracy: 1.0          # 'accuracy' is not the psychology metric — don't auto-suspect it
+  hard_min_sample: 30               # below 30 participants is anecdote (CRITICAL)
+  min_sample: 100                   # a real psychology sample floor — underpowered cells don't replicate
+  max_p: 0.05
+  marginal_p_floor: 0.01            # just-significant (0.01 < p ≤ 0.05) is fragile, not confirmatory
+  min_effect_size: 0.1              # an effect below d≈0.1 is significant-but-negligible (large-n p-hacking)
+  require_out_of_sample: false      # a behavioral experiment is prospective, not an ML holdout
+  require_leakage_check: false      # leakage is an ML concept; here the danger is HARKing / p-hacking
+  require_confidence_interval: true # an effect with no CI is uninterpretable — point estimates lie
+facts:
+  # ── (1) PRE-REGISTRATION / NO HARKing ──────────────────────────────────────────────────────────
+  # HARKing — Hypothesizing After the Results are Known — relabels an exploratory finding as if it had
+  # been predicted, inflating its apparent confirmatory weight. The defense is a pre-registered,
+  # a-priori hypothesis with a confirmatory test specified BEFORE the data exist.
+  # CANONICAL-SUBSTRING TRAP (deliberately avoided): the bare term "confirmatory" is a substring of the
+  # forbidden phrase "exploratory presented as confirmatory" — using it would let that very phrase
+  # ALSO match a canonical and SILENTLY SUPPRESS the flag. So the canonical is the specific
+  # "confirmatory analysis", which is NOT a substring of any forbidden phrase here.
+  - id: prereg_no_harking
+    domain_keywords: [hypothesis, study, experiment, effect, finding, condition, participants, psychology, confirmatory, exploratory]
+    canonical_terms: [pre-registered, confirmatory analysis, a-priori hypothesis]
+    forbidden_terms: [HARKing, hypothesizing after the results, post-hoc hypothesis, exploratory presented as confirmatory]
+    severity: CRITICAL
+  # ── (2) ANALYTIC FLEXIBILITY / NO p-HACKING ────────────────────────────────────────────────────
+  # Researcher degrees of freedom — optional stopping, undisclosed exclusions, the garden of forking
+  # paths — manufacture significance from noise. The defense is a pre-specified analysis with all
+  # measures reported and a sensitivity analysis showing the result survives reasonable alternatives.
+  # NB: canonical terms are kept specific so none is a substring of a forbidden phrase (e.g. plain
+  # "analysis" would substring-match nothing here, but "sensitivity analysis" / "pre-specified
+  # analysis" are unambiguous and won't suppress on an honest claim).
+  - id: prespecified_no_phacking
+    domain_keywords: [analysis, p-value, significant, comparison, exclusions, model, test, regression, effect]
+    canonical_terms: [pre-specified analysis, all measures reported, sensitivity analysis]
+    forbidden_terms: [optional stopping, p-hacked, garden of forking paths, undisclosed exclusions, researcher degrees of freedom]
+    severity: CRITICAL
+  # ── (3) MEASUREMENT / POWER ────────────────────────────────────────────────────────────────────
+  # A single-item or unvalidated scale measures noise as if it were the construct; an underpowered
+  # design can't detect the effect it claims. The defense is a validated measure, an adequately-powered
+  # design, and a direct replication. None of these canonicals is a substring of a forbidden term
+  # (e.g. "validated measure" is NOT inside "unvalidated scale" — different head noun — so an honest
+  # "validated measure" claim is not suppressed, and the forbidden "unvalidated scale" still fires).
+  - id: validated_powered_measure
+    domain_keywords: [measure, scale, construct, instrument, sample, power, reliability, questionnaire, item]
+    canonical_terms: [validated measure, adequately powered, direct replication]
+    forbidden_terms: [single-item measure, unvalidated scale, underpowered]
+    severity: CRITICAL

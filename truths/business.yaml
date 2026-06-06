@@ -1,0 +1,51 @@
+# Domain pack: BUSINESS / C-SUITE / ENTERPRISE + SUPPLY-CHAIN metric claims.
+# The verify-the-numbers-a-business-reports layer. A reported business metric is trustworthy only
+# when it has a DEFINED denominator and cohort, covers a real period (not a cherry-picked window),
+# and beats a baseline. The danger is the vanity metric and the survivorship cut — a number that
+# only looks good because the failures were dropped, the window was hand-picked, or the denominator
+# was never named. "Accuracy" is NOT the business metric (a conversion / retention RATE is not an ML
+# accuracy), so it is never auto-suspected; OOS / leakage are ML concerns and are waived here.
+thresholds:
+  suspicious_accuracy: 1.0          # a rate (conversion, retention, fill) is not ML accuracy — never auto-suspect
+  hard_min_sample: 30               # below 30 accounts / orders / customers is anecdote (CRITICAL)
+  min_sample: 100
+  max_p: 0.05
+  marginal_p_floor: 0.01            # a marginal lift in an A/B / cohort comparison is fragile, not established
+  min_lift: 0.0                     # a metric must actually beat its stated baseline, not tie it
+  require_out_of_sample: false      # OOS is an ML-holdout notion; a business KPI is not "out of sample"
+  require_leakage_check: false      # likewise, look-ahead leakage is not the business failure mode here
+facts:
+  # (1) METRIC INTEGRITY — is the headline number honestly constructed?
+  # The forbidden terms are the classic ways a business number lies: a vanity metric (impressive,
+  # unactionable), a cherry-picked period, survivorship (winners-only), an undefined denominator, or
+  # an undisclosed non-GAAP adjustment. NB the substring trap: canonical "gaap" would be a SUBSTRING
+  # of forbidden "non-gaap (undisclosed)" and silently suppress the flag — so the canonical signal is
+  # the specific "gaap-reconciled" instead, which is NOT inside the forbidden phrase. The other
+  # canonical terms ("defined cohort", "like-for-like", "trailing twelve months") are likewise kept
+  # specific so none is a substring of any forbidden term.
+  - id: metric_integrity
+    domain_keywords: [metric, kpi, revenue, margin, growth, earnings, dashboard, reported, denominator]
+    canonical_terms: [defined cohort, like-for-like, trailing twelve months, gaap-reconciled]
+    forbidden_terms: [vanity metric, cherry-picked period, survivorship, undefined denominator, non-gaap (undisclosed)]
+    severity: CRITICAL
+  # (2) SALES / MARKETING — is the unit-economics story honest?
+  # Blended CAC hides the paid-acquisition cost behind cheap organic; reporting logo churn while
+  # hiding revenue churn flatters retention when big accounts shrink. The honest counterparts:
+  # fully-loaded CAC, cohort retention, net revenue retention. Terms are specific so "fully-loaded
+  # cac" / "cohort retention" never substring-match the forbidden "blended cac (hiding paid)" /
+  # "logo churn hiding revenue churn".
+  - id: sales_marketing
+    domain_keywords: [cac, churn, retention, ltv, acquisition, funnel, pipeline, conversion, customers]
+    canonical_terms: [cohort retention, fully-loaded cac, net revenue retention]
+    forbidden_terms: [blended cac (hiding paid), logo churn hiding revenue churn]
+    severity: CRITICAL
+  # (3) SUPPLY CHAIN (receipt-to-delivery) — is the fulfilment number end-to-end?
+  # "On-time (origin only)" claims punctuality at the dock, not at the customer's door; a fill rate
+  # that excludes backorders counts only what shipped and ignores what couldn't. The honest measures
+  # span the whole order: OTIF (on-time-in-full), perfect order rate, end-to-end lead time. Short
+  # canonical "otif" deliberately does not appear inside either forbidden phrase.
+  - id: supply_chain
+    domain_keywords: [supply chain, fulfilment, fulfillment, delivery, shipment, fill rate, backorder, on-time, logistics]
+    canonical_terms: [otif, perfect order rate, end-to-end lead time]
+    forbidden_terms: [on-time (origin only), fill rate excluding backorders]
+    severity: CRITICAL
