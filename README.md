@@ -141,7 +141,9 @@ Ready-made **domain packs** live in [`truths/`](truths/) — `ml-classification`
 `ab-test`, `research`, plus high-stakes science: `clinical-trials` (pre-specified endpoint + CI),
 `genomics` (genome-wide significance `p < 5e-8`, not `0.05`), `epidemiology` (adjust for confounders
 + multiplicity), `economics`, `ml-security`, `neuroscience`, `psychology` (the replication-crisis pack, locked tight),
-`business` (C-suite + supply-chain metrics) — **twelve packs** in all. So the same
+`business` (C-suite + supply-chain metrics), and `ai-eval` (AI benchmark/eval claims — data
+contamination, cherry-picked baselines, test-set tuning; a high score is *not* auto-suspect) —
+**thirteen packs** in all. So the same
 `0.72` is auto-suspect for a trading signal but fine for a classifier, a GWAS hit at `p=1e-5` is
 correctly refused, and an "obfuscated-gradients" robustness claim is flagged. Point `--truth` at one,
 or tune your own.

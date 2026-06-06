@@ -1,0 +1,57 @@
+# Domain pack: AI-EVAL / BENCHMARK / MODEL EVALUATION.
+#
+# Verifies claims about an AI/ML model's benchmark or evaluation result — "model X
+# scores Y on benchmark Z." The failure modes here are NOT the trading domain's: a
+# high score is a legitimate goal, never auto-suspect. They are data CONTAMINATION
+# (the test set was seen in training — the #1 modern eval failure), a CHERRY-PICKED
+# or weak baseline, TUNING ON THE TEST set, and a headline gain that is statistical
+# noise. Thresholds are grounded in evaluation-methodology standards (binomial CI
+# sample math; the replication-literature p-cut), NOT tuned to any benchmark corpus
+# — corpus-fitting an eval gate would be the very sin this pack checks for.
+#
+# What a PASS means: the claim cleared THESE checks — a held-out test set,
+# decontamination affirmed, an honest baseline, significance on the gap, reported
+# variance. It does NOT certify the model is good, the benchmark is meaningful, or
+# the result generalizes. (Honest gap: plain text-matching cannot judge negation;
+# the structural fields are the load-bearing checks, the facts catch disclosed sins.)
+
+thresholds:
+  suspicious_accuracy: 1.0          # a high score is legitimate here — never auto-suspect; contamination is caught by facts, not magnitude
+  hard_min_sample: 100              # < 100 eval examples → ±10% s.e. at best (binomial); CRITICAL
+  min_sample: 1000                  # < 1000 → wider than ~±3%; thin (HIGH)
+  require_out_of_sample: true       # a held-out test set is mandatory
+  require_leakage_check: true       # train/test decontamination must be affirmed — the #1 eval failure
+  max_p: 0.05                       # significance bar on the gap over baseline
+  marginal_p_floor: 0.01            # a just-significant headline (0.01 < p ≤ 0.05) is fragile (replication literature)
+  min_effect_size: 0.01             # gap-over-baseline floor is deliberately low — a small gain counts IF it is significant
+  min_lift: 0.0                     # accuracy must exceed the base rate (a model that can't beat majority-class is not "performing")
+  require_confidence_interval: false # CIs are encouraged but not universally reported; opt-in
+
+facts:
+  # The #1 failure mode of modern AI-eval claims: the test set was seen in training.
+  - id: no_data_contamination
+    domain_keywords: [benchmark, eval, evaluation, test set, accuracy, model, score, dataset, leaderboard, sota]
+    canonical_terms: [decontaminated, n-gram decontamination, canary string, held-out test set, train-test separation verified]
+    forbidden_terms: [data leakage, train-test overlap, benchmark contamination, trained on the test, memorized the benchmark, test set in the training]
+    severity: CRITICAL
+
+  # A gain is only meaningful against an honest, comparably-resourced baseline.
+  - id: honest_baseline
+    domain_keywords: [baseline, sota, state-of-the-art, outperform, beats, improvement over, compared to, gain]
+    canonical_terms: [strong baseline, prior state-of-the-art, matched-compute baseline, like-for-like comparison, tuned baseline]
+    forbidden_terms: [cherry-picked baseline, weak baseline, no baseline, strawman baseline, unfair comparison]
+    severity: HIGH
+
+  # Selecting or tuning on the test set inflates the reported number.
+  - id: eval_integrity
+    domain_keywords: [test set, validation, tuning, hyperparameter, eval, benchmark, generalization, selection]
+    canonical_terms: [held-out validation set, separate dev set, blind test set, pre-registered evaluation]
+    forbidden_terms: [tuned on the test set, fit to the test set, test set tuning, overfit to the benchmark, selected on the test]
+    severity: HIGH
+
+  # A single run hides variance; a headline number without spread is not yet a result.
+  - id: reported_variance
+    domain_keywords: [accuracy, score, result, run, seed, benchmark, evaluation]
+    canonical_terms: [averaged across seeds, multiple random seeds, variance across runs, standard deviation across runs]
+    forbidden_terms: [single seed only, one run only, no variance reported, point estimate only]
+    severity: MEDIUM
