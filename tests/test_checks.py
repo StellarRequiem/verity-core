@@ -174,6 +174,37 @@ def test_r3_max_ci_width_is_config_overridable():
     assert iss is not None and iss["severity"] == "MEDIUM"
 
 
+# ── R4: marginal significance (a just-significant p is fragile) ─────────────────
+def test_r4_marginal_p_flagged_medium():
+    # 0.01 < p <= 0.05 — "just significant"; held-out-validated as fragile on 1,772 real
+    # replications (marginal claims replicated 42% vs 59% for strongly significant ones).
+    iss = _issue({**CLEAN, "p_value": 0.03}, "marginal_significance")
+    assert iss is not None and iss["severity"] == "MEDIUM"
+
+
+def test_r4_strong_p_is_silent():
+    # p <= 0.01 — strongly significant: neither the marginal caution nor the insignificance flag
+    fired = _checks({**CLEAN, "p_value": 0.005})
+    assert "marginal_significance" not in fired and "significance" not in fired
+
+
+def test_r4_insignificant_p_is_significance_not_marginal():
+    # p > 0.05 — the existing HIGH 'significance' fires; the marginal caution must NOT double-fire
+    fired = _checks({**CLEAN, "p_value": 0.06})
+    assert "significance" in fired and "marginal_significance" not in fired
+
+
+def test_r4_silent_when_no_p_disclosed():
+    # the standing rule: no p_value disclosed -> no marginal flag
+    assert "marginal_significance" not in _checks(CLEAN)
+
+
+def test_r4_marginal_floor_is_configurable():
+    # the 0.01 floor is the principled default, but tunable; widen it and a p of 0.005 becomes marginal
+    wide = {"thresholds": {"marginal_p_floor": 0.001}, "facts": []}
+    assert _issue({**CLEAN, "p_value": 0.005}, "marginal_significance", wide) is not None
+
+
 # ── coexistence with the existing rigor checks ─────────────────────────────────
 def test_new_checks_coexist_with_significance_and_base_rate():
     # one claim that simultaneously trips an EXISTING check (significance, z<2) and a NEW one

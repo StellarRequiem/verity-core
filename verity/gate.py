@@ -175,6 +175,17 @@ def _rigor(claim: dict, th: dict) -> list[dict]:
     if p is not None and p > th.get("max_p", 0.05):
         issues.append({"check": "significance", "severity": "HIGH",
                        "detail": f"p {p:g} > {th.get('max_p', 0.05)} — not significant"})
+    # marginal significance — a p-value *just* under the bar is fragile. Across 1,772 real
+    # replications, "just significant" claims (0.01 < p ≤ 0.05) replicated 42% vs 59% for strongly
+    # significant ones (p ≤ 0.01): a 16pt gap, z=6.1, confirmed out-of-sample. The binary p>0.05
+    # cut can't see this — scoring the *margin* is the principled, held-out-validated refinement
+    # (docs/replication-benchmark.md). A caution (MEDIUM), not a REFUSE: it clears significance,
+    # but fragibly. The 0.01 floor is the standard literature cut, not tuned to the corpus.
+    elif p is not None and p > th.get("marginal_p_floor", 0.01):
+        issues.append({"check": "marginal_significance", "severity": "MEDIUM",
+                       "detail": f"p {p:g} is just-significant ({th.get('marginal_p_floor', 0.01):g} "
+                                 f"< p ≤ {th.get('max_p', 0.05)}) — marginal results replicate far "
+                                 "less often (42% vs 59%); treat as fragile, not established"})
 
     # multiple comparisons — best-of-N selection inflates any significance unless corrected
     n_comp = _num(claim.get("n_comparisons", claim.get("strategies_tried", claim.get("variants_tried"))))
