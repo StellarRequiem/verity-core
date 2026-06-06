@@ -108,7 +108,8 @@ track real trustworthiness. The honest arc is the point: the 132-case subset onl
 (z=1.30, p=0.19) and `verity verify` flagged **our own claim** as under-powered; we got the power and
 it held. And significant ≠ large — `verity verify` on the result **passes significance but WARNs the
 effect is modest** (1.41×). *A verifier that flags its own claim, confirms it, then refuses to oversell
-it — that's the holotype.*
+it — that's the holotype.* → **[the full writeup](docs/replication-benchmark.md)** (what carries the
+signal, an honest held-out improvement test, and why we *didn't* overfit to win).
 
 ## As a CLI / CI gate
 
