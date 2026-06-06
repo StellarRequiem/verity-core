@@ -1,0 +1,23 @@
+# Domain pack: EPIDEMIOLOGY / OBSERVATIONAL.
+# Observational associations are confounded by default. A claim must adjust for confounders, correct
+# for multiple comparisons, and beat the base rate by a real margin. "Significant" on one unadjusted
+# comparison is the classic false positive — the "coffee causes cancer" headline. A bare association
+# is not causation, and a marginal p over a fished set of exposures is noise.
+thresholds:
+  suspicious_accuracy: 1.0
+  hard_min_sample: 100
+  min_sample: 1000
+  max_p: 0.05
+  marginal_p_floor: 0.01
+  min_effect_size: 0.1
+  min_lift: 0.0
+  require_out_of_sample: false
+  require_leakage_check: false
+facts:
+  - id: confounding_and_multiplicity
+    domain_keywords: [cohort, exposure, risk, association, incidence, observational, relative risk, odds ratio]
+    # NB: keep canonical terms specific — a generic "adjusted" would substring-match the forbidden
+    # "unadjusted" and silently suppress the flag (the gate suppresses forbidden-with-canonical by design).
+    canonical_terms: [confounder-adjusted, confounders, covariates, multiple comparisons, bonferroni, pre-registered]
+    forbidden_terms: [unadjusted, single comparison, data dredging, cherry-picked, garden of forking]
+    severity: CRITICAL

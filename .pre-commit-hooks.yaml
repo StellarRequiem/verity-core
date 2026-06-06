@@ -1,0 +1,18 @@
+# verity as a pre-commit hook — gate result-claims before they can be committed.
+# Add to YOUR repo's .pre-commit-config.yaml:
+#
+#   - repo: https://github.com/StellarRequiem/verity-core
+#     rev: v0.2.0
+#     hooks:
+#       - id: verity-check
+#         files: results/claims\.jsonl$                       # point it at YOUR claims backlog
+#         args: ["--truth", "truths/ml-classification.yaml"]  # optional: a domain pack
+#
+# Exit code gates the commit: 0 PASS · 1 WARN · 2 REFUSE (a REFUSE blocks the commit).
+- id: verity-check
+  name: verity — gate result-claims
+  description: Refuse to commit untrustworthy empirical result-claims (sample / leakage / significance / selection hygiene).
+  entry: verity check-batch
+  language: python
+  files: \.jsonl$
+  require_serial: true

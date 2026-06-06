@@ -138,8 +138,10 @@ verity check-batch claims.jsonl --truth truths/trading.yaml       # tuned to you
 ```
 
 Ready-made **domain packs** live in [`truths/`](truths/) — `ml-classification`, `trading`,
-`ab-test`, `research` — so the same `0.72` is auto-suspect for a trading signal but fine for a
-classifier. Point `--truth` at one, or tune your own.
+`ab-test`, `research`, plus high-stakes science: `clinical-trials` (pre-specified endpoint + CI),
+`genomics` (genome-wide significance `p < 5e-8`, not `0.05`), `epidemiology` (adjust for confounders
++ multiplicity). So the same `0.72` is auto-suspect for a trading signal but fine for a classifier,
+and a GWAS hit at `p=1e-5` is correctly refused. Point `--truth` at one, or tune your own.
 The **exit code is the worst verdict** (`0` PASS · `1` WARN · `2` REFUSE), so it gates CI like a
 linter. Drop the bundled **GitHub Action** into any workflow:
 ```yaml
@@ -149,6 +151,15 @@ linter. Drop the bundled **GitHub Action** into any workflow:
     truth:  results/truth.yaml         # optional ground-truth (thresholds + facts)
 ```
 A pull request that claims "95% accuracy" now fails CI unless the claim clears the hygiene bar.
+Or gate it **before the commit even lands** — verity ships a [pre-commit](https://pre-commit.com) hook:
+```yaml
+# .pre-commit-config.yaml
+- repo: https://github.com/StellarRequiem/verity-core
+  rev: v0.2.0
+  hooks:
+    - id: verity-check
+      files: results/claims\.jsonl$
+```
 
 ## What it checks
 

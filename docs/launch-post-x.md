@@ -38,6 +38,6 @@ A **PASS** means *trustworthy*, not *true* — it clears the hygiene bar, nothin
 
 Open source (Apache-2.0). It's a CI Action, a Python library, **and** an MCP tool — so an AI agent can verify its own claims before believing a number.
 
-→ **github.com/StellarRequiem/verity-core** (the full 1,772-replication writeup is in the repo)
+→ **https://github.com/StellarRequiem/verity-core** (the full 1,772-replication writeup is in the repo)
 
-— Alex Price ([@StellarRequiem](https://x.com/StellarRequiem))
+— Alex Price (@StellarRequiem)

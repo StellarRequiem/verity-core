@@ -1,0 +1,21 @@
+# Domain pack: CLINICAL TRIALS / RCTs.
+# A clinical claim must rest on a pre-specified, powered primary endpoint — not a fished subgroup.
+# "Out-of-sample" is N/A (a trial is prospective by construction), but significance, a practical
+# effect, adequate power, and an honest confidence interval are non-negotiable; the danger is the
+# "promising" underpowered or post-hoc result dressed up as efficacy.
+thresholds:
+  suspicious_accuracy: 1.0          # 'accuracy' is not the clinical metric — don't auto-suspect it
+  hard_min_sample: 30               # below 30 patients is anecdote
+  min_sample: 100
+  max_p: 0.05
+  marginal_p_floor: 0.01            # a marginal p in a trial is fragile, not confirmatory
+  min_effect_size: 0.1
+  require_out_of_sample: false      # a prospective RCT is not "out of sample" in the ML sense
+  require_leakage_check: false
+  require_confidence_interval: true # a clinical effect with no CI is uninterpretable
+facts:
+  - id: prespecified_endpoint
+    domain_keywords: [trial, endpoint, treatment, patients, efficacy, arm, randomized, outcome]
+    canonical_terms: [pre-registered, pre-specified, primary endpoint, intention-to-treat, randomized, double-blind]
+    forbidden_terms: [post-hoc, post hoc, subgroup, data-derived endpoint, unblinded, optional stopping]
+    severity: CRITICAL

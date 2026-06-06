@@ -1,0 +1,20 @@
+# Domain pack: GENOMICS / GWAS.
+# A genome-wide scan tests ~1M SNPs, so "significant" means GENOME-WIDE significance (p < 5e-8) — not
+# p < 0.05. Multiplicity correction and an independent replication cohort are mandatory; a locus at
+# p = 1e-5 in a single cohort is almost certainly noise. Effect sizes (odds ratios) are tiny by
+# nature, so the practical-effect floor is disabled here.
+thresholds:
+  suspicious_accuracy: 1.0
+  hard_min_sample: 1000             # GWAS need large cohorts; < 1000 is underpowered
+  min_sample: 10000
+  max_p: 5.0e-8                     # genome-wide significance (Bonferroni over ~1M tests)
+  marginal_p_floor: 1.0e-8          # 1e-8 < p <= 5e-8 is borderline genome-wide — fragile
+  min_effect_size: 0.0              # real GWAS effects are tiny — do NOT floor them
+  require_out_of_sample: false
+  require_leakage_check: false
+facts:
+  - id: replication_cohort
+    domain_keywords: [snp, gwas, locus, allele, variant, association, genome, heritability, polygenic]
+    canonical_terms: [genome-wide significant, replication cohort, independent cohort, bonferroni, fdr-corrected]
+    forbidden_terms: [candidate gene, p < 0.05, uncorrected, single cohort, nominal significance, winner's curse]
+    severity: CRITICAL
