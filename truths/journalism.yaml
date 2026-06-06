@@ -1,0 +1,74 @@
+# Domain pack: JOURNALISM / NEWS / FACT-CHECK claims.
+# This is the verify-the-reporting layer: it checks whether a news claim is SOURCED, IN-CONTEXT,
+# STATISTICALLY GROUNDED, and DISCLOSED — the four ways a story misleads without ever stating a
+# falsehood. It is deliberately NOT the research pack's causal-inference scope (effect sizes,
+# replication, leakage); a news report is not an experiment, so the statistical knobs are permissive
+# and the burden falls on the FACTS — sourcing, context, grounding, disclosure.
+#
+# The canonical news failure is the assertion floated on a single unnamed source or no source at all:
+# unfalsifiable, unaccountable, and the vector for most planted or fabricated stories — so that fact
+# is CRITICAL. A quote stripped of context and a bare statistic with no denominator both mislead a
+# reader who has no way to check, so they are HIGH. An undisclosed conflict / sponsored-as-news is a
+# trust breach but the words can still be true, so it is MEDIUM (a WARN, not a REFUSE).
+#
+# NB the structural knobs are loose by design — "accuracy" here would be a reported percentage in a
+# story, NOT an ML metric, so it is never auto-suspected; out-of-sample / leakage are ML-holdout
+# notions with no meaning for a news report and are waived. The one floor kept is the binomial sample
+# floor, because fact #3 admits a real statistic into the claim.
+thresholds:
+  suspicious_accuracy: 1.0          # a percentage in a news story is not an ML accuracy — never auto-suspect
+  hard_min_sample: 30               # binomial normal-approximation CI floor: below n=30 a Wald proportion
+                                    # interval is invalid (np<5 at moderate p) — a reported rate on <30 is anecdote
+  min_sample: 100                   # below ~100 a poll/survey rate has a >±10pt 95% CI half-width — thin, flag it
+  max_p: 0.05                       # standard significance cut, only used if a story discloses a p-value
+  require_out_of_sample: false      # a news report is not an ML holdout — out-of-sample has no meaning here
+  require_leakage_check: false      # look-ahead leakage is an ML concept, not a journalism failure mode
+facts:
+  # ── (1) SOURCING / ATTRIBUTION ─────────────────────────────────────────────────────────────────
+  # The foundational news failure: an assertion resting on a single unnamed source — or no source at
+  # all — is unfalsifiable and unaccountable, and is the vector for most planted or fabricated stories.
+  # The honest counterpart is a NAMED, on-the-record source, multiple independent sources, or reviewed
+  # documents. CRITICAL — an unsourced/anonymous-only assertion is fabrication-shaped.
+  # SUBSTRING TRAP avoided: bare canonical "named source" is a SUBSTRING of the forbidden "unnamed
+  # source" (…un[named source]…) and would silently suppress that flag — so the canonical is the
+  # specific "named on-the-record source", which is NOT inside any forbidden phrase. (NB no comma in
+  # the phrase: a YAML flow-list splits on commas, so "named, on-the-record source" would tokenise into
+  # a bare "named" that IS inside "unnamed source" — the very trap. Kept comma-free on purpose.)
+  - id: sourcing_attribution
+    domain_keywords: [source, sources, sourced, attribution, attributed, anonymous, unnamed, report, reported, claim, alleges, said]
+    canonical_terms: [named on-the-record source, multiple independent sources, documents reviewed, publicly attributed to]
+    forbidden_terms: [single anonymous source, unnamed source, sources say, people familiar with the matter, unsourced assertion, a person who declined to be named]
+    severity: CRITICAL
+  # ── (2) QUOTE IN CONTEXT ───────────────────────────────────────────────────────────────────────
+  # A quote stripped of its context, cherry-picked, or selectively edited can be word-for-word
+  # accurate yet reverse the speaker's meaning — a reader with only the excerpt cannot tell. The
+  # honest counterpart is the full quote in context / complete remarks / a verbatim transcript. HIGH:
+  # it misleads, but it is a framing failure, not a fabricated source.
+  # No canonical here is a substring of any forbidden term (verified mechanically in the pack tests).
+  - id: quote_in_context
+    domain_keywords: [quote, quoted, quotation, remarks, statement, clip, excerpt, transcript, said, told]
+    canonical_terms: [full quote in context, complete remarks, verbatim transcript, context preserved]
+    forbidden_terms: [quote stripped of context, cherry-picked quote, selectively edited quote, out-of-context excerpt, doctored clip]
+    severity: HIGH
+  # ── (3) STATISTICAL GROUNDING ──────────────────────────────────────────────────────────────────
+  # A statistic with no denominator, no sample size, or no cited dataset is unverifiable theatre:
+  # "crime up 200%" off two incidents, "most experts agree" with no poll. The honest counterpart names
+  # the denominator, gives the sample size, links the dataset, or reports a per-capita rate. HIGH —
+  # the number may be real but the reader cannot check it, and a missing base rate routinely inverts
+  # the story. SUBSTRING TRAP avoided: canonical "dataset cited and linked" is used instead of the bare
+  # "cited dataset", which would be a SUBSTRING of the forbidden "no cited dataset" and suppress it.
+  - id: statistical_grounding
+    domain_keywords: [percent, percentage, statistic, statistics, number, numbers, rate, poll, survey, data, study, figures, denominator]
+    canonical_terms: [denominator reported, dataset cited and linked, sample size given, per-capita rate]
+    forbidden_terms: [no denominator, raw count with no base rate, no cited dataset, percentage with no sample size, statistic with no source]
+    severity: HIGH
+  # ── (4) DISCLOSURE / CONFLICT OF INTEREST ──────────────────────────────────────────────────────
+  # Sponsored content dressed as news, an advertorial left unlabeled, or an undisclosed conflict of
+  # interest is a trust breach — but the words can be literally true, so this is MEDIUM (a WARN, not a
+  # REFUSE). The honest counterpart discloses the conflict / sponsorship / funding or labels the
+  # advertisement. No canonical here is a substring of any forbidden term (verified in the pack tests).
+  - id: disclosure_coi
+    domain_keywords: [sponsored, sponsorship, advertorial, advertisement, conflict, interest, disclosure, disclosed, funding, paid, affiliate]
+    canonical_terms: [conflict of interest disclosed, sponsorship disclosed, labeled advertisement, funding disclosed, editorially independent]
+    forbidden_terms: [undisclosed conflict of interest, sponsored content presented as news, advertorial unlabeled, undisclosed sponsorship, paid placement not disclosed]
+    severity: MEDIUM
