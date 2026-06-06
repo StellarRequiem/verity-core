@@ -38,6 +38,7 @@ Now any session has these tools:
 - **`audit_verify`** — confirm a hash-chained log is intact / tamper-evident.
 
 *An agent that can call `verify` on its own findings is an agent that can refuse to fool you.*
+→ runnable pattern: [`examples/agent_self_check.py`](examples/agent_self_check.py) (the agent refuses a flashy 95%-on-15-trades "edge", acts on a modest 56%-on-1200-OOS one).
 
 ## Agent-native verification — the `verify` surface
 
