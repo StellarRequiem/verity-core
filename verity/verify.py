@@ -173,26 +173,162 @@ def _consistency(claim: dict, prior: dict, th: dict) -> list[dict]:
     return issues
 
 
+def _source_view(src) -> tuple[str, dict, str]:
+    """Normalize one source into a uniform ``(sid, facts, text)`` view. Never raises.
+
+    Three accepted shapes:
+      * ``{"id"/"source"/"name": .., "facts": {..}, "text": ..}`` — a combined source: its
+        ``facts`` dict is compared key-by-key and its ``text`` is substring-searched.
+      * a bare facts dict (no dict-valued ``facts`` key) — the dict ITSELF is the facts bag;
+        a ``text`` field, if any, doubles as searchable text (mirroring ``gate.check`` building
+        searchable text from a claim's own ``text``).
+      * a plain string — no facts, the whole string is the searchable text.
+      * anything else (int / None / list / …) — no facts, ``str(src)`` as text, a generic id.
+
+    ``sid`` is for the human-readable detail ONLY; it is never compared. Everything is
+    ``str()``-wrapped so a weird / non-finite source value contributes facts={}/text but
+    never crashes the verifier.
+    """
+    if isinstance(src, dict):
+        if isinstance(src.get("facts"), dict):
+            facts = src["facts"]
+            text = str(src.get("text", ""))
+            sid = src.get("id", src.get("source", src.get("name", "?")))
+        else:
+            facts = src
+            text = str(src.get("text", ""))
+            sid = src.get("id", src.get("source", src.get("name", "?")))
+        return (str(sid), facts, text)
+    if isinstance(src, str):
+        return (src[:40] or "?", {}, src)            # plain-text source
+    return (f"<{type(src).__name__}>", {}, str(src))
+
+
+def _source_asserts(k: str, cv, facts: dict, text: str, th: dict) -> str:
+    """Does ONE source assert claim-value ``cv`` for key ``k``? → "contradict" | "support" | "silent".
+
+    STRUCTURED (``k`` is in ``facts``): reuse the EXACT evidence branch order & comparison —
+    bool-first (so ``True == 1.0`` cannot mask a flip), then numeric-within-tolerance, then
+    normalized-string, then a mixed/uncoercible fall-through. INTENTIONAL divergence from
+    ``_evidence``: a mixed/uncoercible UNEQUAL structured value where BOTH sides are non-numeric
+    (e.g. two differing lists/dicts) is a CONTRADICTION here (a source asserting the key with a
+    concrete incomparable shape disputes the claim), where evidence treats it as a MEDIUM
+    type-mismatch. The ONE exception — a deliberate adversarial guard — is the NUMERIC-vs-GARBAGE
+    pair: if exactly one side is a finite number and the other is not (NaN/inf/set/None/list/…),
+    the comparison is incoherent and the source is "silent" on that key, NOT a contradiction, so a
+    poisoned source cannot weaponise junk into a forced REFUSE. Outside that guard, finding ``k`` in
+    ``facts`` yields contradict/support — never "silent". ``k`` is excluded from ``facts``-search if
+    it is a text/name key by the caller (``_grounding`` iterates non-text keys only), keeping the
+    claim-side text exclusion symmetric.
+
+    TEXT (``k`` NOT in ``facts``, ``text`` non-empty): the value's canonical string form is
+    substring-searched (the same normalized-containment idiom as ``gate._match_facts``). A text
+    source can only SUPPORT or be SILENT — NEVER contradict: the value's string being absent
+    means the key may simply be phrased differently, not that the source asserts a different
+    value. (This keeps the false-positive-contradiction risk at zero for prose sources.)
+    """
+    # (a) STRUCTURED match against this source's facts.
+    if isinstance(facts, dict) and k in facts:
+        sv = facts[k]
+        cv_bool, sv_bool = isinstance(cv, bool), isinstance(sv, bool)
+        if cv_bool or sv_bool:
+            return "support" if cv == sv else "contradict"      # bool-first: True==1.0 masking
+        cvn, svn = _num(cv), _num(sv)
+        if cvn is not None and svn is not None:
+            return "contradict" if _num_disagree(cvn, svn, th) else "support"
+        if isinstance(cv, str) and isinstance(sv, str):
+            return "support" if _norm(cv) == _norm(sv) else "contradict"
+        # NUMERIC-vs-GARBAGE guard (adversarial): if EXACTLY ONE side reads as a finite number and
+        # the other does NOT (NaN/inf, a set, None, a list, an unparseable string, …), the comparison
+        # is INCOHERENT — the source is not making a credible, comparable counter-assertion about a
+        # numeric key. Routing that to "contradict" would let a POISONED source force REFUSE on an
+        # honest numeric claim merely by injecting unreadable junk for that key (a denial-of-trust
+        # false-contradiction). Garbage neither grounds nor refutes → SILENT (degrades to the MEDIUM
+        # "not supported by any cited source", never a garbage-driven CRITICAL). Mirrors _num's stance
+        # that a non-finite "number" is fabrication-shaped, not a value to score against.
+        if (cvn is None) != (svn is None):
+            return "silent"
+        # mixed / uncoercible, NEITHER numeric: a source asserting a concrete differing structured
+        # value (e.g. two different lists/dicts) still disputes the claim (see docstring).
+        return "support" if cv == sv else "contradict"
+    # (b) TEXT match — only when the key is NOT structurally asserted and there is text to search.
+    if text:
+        if isinstance(cv, bool):
+            vs = str(cv).lower()                                # "true" / "false"
+        else:
+            cvn = _num(cv)
+            if cvn is not None:
+                vs = f"{cvn:g}"                                 # 0.58 -> "0.58", 300 -> "300"
+            elif isinstance(cv, str):
+                vs = _norm(cv)
+            else:
+                vs = str(cv)
+        if _norm(vs) in _norm(text):
+            return "support"
+    # (c) otherwise the source is silent on this key.
+    return "silent"
+
+
+def _grounding(claim: dict, sources: list, th: dict) -> list[dict]:
+    """Reconcile each disclosed claim fact against what the CITED sources actually assert.
+
+    For each disclosed claim key (every key except text/name, in claim order), scan ALL sources:
+
+      * CONTRADICTION beats SUPPORT beats SILENT. If any source contradicts the key →
+        CRITICAL (a fabrication-class error: the claim's OWN cited source asserts a different
+        value) — even when another source supports it (sources that DISAGREE about the key do
+        not safely ground it; surface the conflict). The detail names the first contradictor.
+      * Else if at least one source supports the key → grounded (no issue).
+      * Else (no source asserts the key at all) → MEDIUM "not supported by any cited source".
+
+    A STRUCTURED source contradicts by asserting a differing value; a TEXT source can only
+    support or be silent (see ``_source_asserts``). Sources are normalized once via
+    ``_source_view``. Pure-Python, deterministic, no I/O — sources are caller-supplied resolved
+    facts/text, exactly like ``truth``; they are NEVER fetched or crawled.
+    """
+    issues: list[dict] = []
+    keys = [k for k in claim if k not in _TEXT_KEYS]
+    views = [_source_view(s) for s in sources]      # normalize once: [(sid, facts, text), ...]
+    for k in keys:
+        cv = claim[k]
+        states = [_source_asserts(k, cv, facts, text, th) for (_, facts, text) in views]
+        contradictors = [(views[i][0], views[i][1].get(k)) for i, st in enumerate(states)
+                         if st == "contradict"]
+        if contradictors:
+            sid, sv = contradictors[0]
+            issues.append({"source": "grounding", "check": f"grounding:{k}", "severity": "CRITICAL",
+                           "detail": f"claim {k}={cv!r} contradicts source {sid} {k}={sv!r}"})
+        elif any(st == "support" for st in states):
+            continue                                 # grounded — at least one source backs K
+        else:
+            issues.append({"source": "grounding", "check": f"grounding:{k}", "severity": "MEDIUM",
+                           "detail": f"claim {k} not supported by any cited source"})
+    return issues
+
+
 def verify(claim: dict, *, evidence: dict | None = None, sources: list | None = None,
            prior: dict | None = None, truth: dict | None = None) -> dict:
     """Verify ``claim`` across every applicable dimension before acting on it.
 
     EMPIRICAL hygiene always runs (``gate.check``). EVIDENCE-match runs iff ``evidence``
-    is given; CONSISTENCY runs iff ``prior`` is given. A dimension key is ABSENT when its
-    input was not supplied — so a caller can distinguish "checked and clean" from "not
-    applicable". The overall verdict is the worst severity across all run dimensions,
-    by the one ``gate`` ladder.
+    is given; CONSISTENCY runs iff ``prior`` is given; GROUNDING runs iff ``sources`` is a
+    NON-EMPTY list. A dimension key is ABSENT when its input was not supplied — so a caller
+    can distinguish "checked and clean" from "not applicable". The overall verdict is the
+    worst severity across all run dimensions, by the one ``gate`` ladder.
 
     ``truth`` is a *resolved* truth dict (thresholds + facts); when None the packaged
-    default is loaded here. ``sources`` is used ONLY for a presence/empty check — it is
-    never crawled or fetched (the no-I/O rule holds).
+    default is loaded here. ``sources`` is now used (a) by EVIDENCE for a presence/empty
+    provenance check AND (b) by GROUNDING — when non-empty — as resolved facts/text to
+    reconcile the claim against; it is still NEVER crawled or fetched (the no-I/O rule holds:
+    sources are caller-supplied resolved facts/text, exactly like ``truth``).
 
     Returns::
 
         {"verdict": "REFUSE"|"WARN"|"PASS",
          "dimensions": {"empirical": {"verdict", "issues"},
                         "evidence":    {...},   # iff evidence is not None
-                        "consistency": {...}},  # iff prior    is not None
+                        "consistency": {...},   # iff prior    is not None
+                        "grounding":   {...}},  # iff sources is a non-empty list
          "issues": [...all issues, flattened, each carrying its "source"...]}
     """
     if truth is None:
@@ -228,5 +364,15 @@ def verify(claim: dict, *, evidence: dict | None = None, sources: list | None = 
         co_issues = _consistency(claim_d, prior if isinstance(prior, dict) else {}, th)
         dimensions["consistency"] = {"verdict": _verdict_of(co_issues), "issues": co_issues}
         all_issues.extend(co_issues)
+
+    # GROUNDING — only when `sources` is a NON-EMPTY list (real cited sources to reconcile
+    # against). An empty/None sources list is NOT a grounding run: empty is the evidence dim's
+    # "provenance missing" LOW case, None is "no provenance claimed". The isinstance guard makes a
+    # non-list `sources` (e.g. a bare string) inert here. `claim_d` ({} for a non-dict claim,
+    # already REFUSEd by empirical) yields no grounding keys — no crash.
+    if isinstance(sources, list) and len(sources) > 0:
+        gr_issues = _grounding(claim_d, sources, th)
+        dimensions["grounding"] = {"verdict": _verdict_of(gr_issues), "issues": gr_issues}
+        all_issues.extend(gr_issues)
 
     return {"verdict": _verdict_of(all_issues), "dimensions": dimensions, "issues": all_issues}

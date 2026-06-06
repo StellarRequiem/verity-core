@@ -40,7 +40,7 @@ Now any session has these tools:
 ## Agent-native verification — the `verify` surface
 
 `verify` is the unified entrypoint an agent calls **before acting** on a number. It is a thin
-orchestrator over three independent, deterministic dimensions — each emitting the same issue shape,
+orchestrator over four independent, deterministic dimensions — each emitting the same issue shape,
 all judged by one verdict ladder (worst severity wins: `REFUSE` ≥ CRITICAL · `WARN` any · `PASS`
 clean). A dimension only runs when you give it the input, so the result distinguishes *"checked and
 clean"* from *"not applicable"*.
@@ -50,6 +50,7 @@ clean"* from *"not applicable"*.
 | **empirical** | always | sample floors, suspicious / impossible accuracy, out-of-sample + leakage affirmation, statistical rigor (significance, effect-size floor, power/MDE, CI coherence, multiplicity, base-rate) |
 | **evidence** | `evidence=` given | the claim's fields vs **recomputed** ground truth — a number that disagrees beyond tolerance is a fabrication-class **CRITICAL** (deterministic field reconciliation, *never* fuzzy NLP) |
 | **consistency** | `prior=` given | the claim vs a **previously-asserted** claim — a silently-revised number is a story-change (HIGH); a sign-flip on a signed effect is a direct contradiction (**CRITICAL**) |
+| **grounding** | `sources=` non-empty | the claim's disclosed facts vs what its **cited sources** actually assert — a structured source asserting a differing value is a **CRITICAL** contradiction (it beats support: disagreeing sources don't safely ground); a fact no source backs is MEDIUM "unsupported". Sources are caller-supplied resolved facts/text — **never** crawled. A *text* source can support (substring) but never contradict; a *poisoned* source (NaN/garbage for a numeric key) is silent, so junk can't force a REFUSE |
 
 ```python
 from verity import verify, load_truth
@@ -76,6 +77,16 @@ verity verify --claim '{"name":"money-printer","accuracy":0.91,"sample_size":12,
 ```
 `--evidence`, `--prior`, `--sources` accept inline JSON or `@file`; `--sources` also takes a bare
 `a,b,c` list. (MCP: same arguments, returns the VERIFIED block.)
+
+**Grounding** runs when `--sources` is a *non-empty* list of resolved facts/text (never crawled). A
+structured source that asserts a differing value is a CRITICAL contradiction:
+
+```sh
+verity verify --claim   '{"name":"alpha","accuracy":0.91,"out_of_sample":true,"leakage_checked":true}' \
+              --sources '[{"id":"recompute.csv","facts":{"accuracy":0.58}}]'
+# VERIFIED → REFUSE: grounding:accuracy claim 0.91 contradicts source recompute.csv accuracy=0.58
+# …whereas --sources '[{"id":"recompute.csv","facts":{"accuracy":0.91}}]' grounds it → that field clears.
+```
 
 ### The eval harness — `verity eval`
 
@@ -168,9 +179,21 @@ Per the Measurable Work Standard, the limits are stated, not hidden:
   not** attempted because "no look-ahead" legitimately contains "look-ahead", and reliable negation
   detection is exactly the fuzzy-NLP this gate refuses to do. The gate catches the *naïve* tell, not
   an adversarial one.
-- **Reconciliation only sees shared fields.** evidence/consistency compare keys present in **both**
-  dicts; a claim that **omits** a disputed field is not caught by those dimensions (it is silent, by
-  design — you can only reconcile what is stated). Omission-evasion is a known gap.
+- **Reconciliation only sees stated fields — omission-evasion persists.** evidence/consistency
+  compare keys present in **both** dicts; grounding only iterates the claim's **own disclosed** keys.
+  So a claim that simply **omits** a disputed fact is silent across all three (you can only reconcile
+  what is stated). It **degrades gracefully** — the omitted fact is never grounded, never invented,
+  and never crashes the verifier (tested adversarially) — but it is **not caught**. Omission-evasion
+  is a known, by-design gap; closing it needs an *expected-fields* contract the caller has not given.
+- **Grounding's text-source matching is shallow (substring, not semantic).** A *structured* source
+  (`{facts: {...}}`) is reconciled value-by-value and CAN contradict; a *text/prose* source is only
+  normalized-substring-searched, so it can **support** (the value's string appears) or be **silent**,
+  but **never contradict** — absence of a value's string means "phrased differently", not "disputed".
+  A prose source therefore can't *catch* a wrong number, only fail to back it (MEDIUM unsupported);
+  and "0.6" won't match prose that says "60%". Sources are caller-supplied resolved facts/text and
+  are **never crawled or fetched** (the no-I/O rule). Hardened so a *poisoned* source — NaN/inf/garbage
+  for a numeric key, a non-dict / non-serialisable source, a list of junk — is treated as silent and
+  cannot force a REFUSE or crash the gate; what it can't do is upgrade prose to semantic understanding.
 - **A poisoned truth pack is obeyed.** Thresholds come from the caller's truth file; a deliberately
   loosened pack (e.g. `hard_min_sample: 1`) will pass claims a strict pack rejects. Only impossible
   values (accuracy outside `[0,1]`, a malformed claim) are refused regardless of config. Trust the
