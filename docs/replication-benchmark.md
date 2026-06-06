@@ -62,7 +62,9 @@ did **not** bake it in.
 line of code: marginal claims replicated **42% vs 59%** for strongly-significant ones (p ≤ 0.01) — a
 16-pt gap, z = 6.1, **confirmed out-of-sample** (held-out 48% vs 62%, z = 2.8). So we added exactly
 one check — `marginal_significance` (a MEDIUM caution), using the standard **0.01** literature cut,
-*not* a threshold searched over the data. That single check took the gate from 1.41× to **2.14×**.
+*not* a threshold searched over the data. That single check took the gate from 1.41× to **2.14×** —
+and it's robust, not a lucky split: strong-beats-marginal holds in **10/10 folds** and in every major
+discipline (`eval/external/robustness.py`).
 
 The difference is everything: we improved the gate with a check the *literature and the held-out
 data both endorse* — not by fitting a knob to make this benchmark look good. The first would be

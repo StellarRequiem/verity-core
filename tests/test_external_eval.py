@@ -35,3 +35,17 @@ def test_require_leakage_check_is_config_gated():
     assert any(i["check"] == "leakage" for i in check(c, {"thresholds": {}, "facts": []})["issues"])
     off = check(c, {"thresholds": {"require_leakage_check": False}, "facts": []})
     assert not any(i["check"] == "leakage" for i in off["issues"])
+
+
+def test_marginal_signal_is_robust_not_a_lucky_split():
+    """The 2.14x improvement's mechanism — strong (p<=.01) replicates more than marginal
+    (.01<p<=.05) — must hold across folds, not just one split (eval/external/robustness.py)."""
+    import importlib.util
+    from pathlib import Path
+    rp = Path(__file__).resolve().parent.parent / "eval" / "external" / "robustness.py"
+    spec = importlib.util.spec_from_file_location("_robustness", rp)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    r = mod.run()
+    assert r["folds_ok"] >= 9          # right direction in (almost) every fold
+    assert r["mean_gap"] > 0.05        # and a materially positive average gap
