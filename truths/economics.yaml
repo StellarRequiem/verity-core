@@ -1,0 +1,43 @@
+# Domain pack: EMPIRICAL ECONOMICS / ECONOMETRICS.
+# In applied micro/macro, IDENTIFICATION is everything: a coefficient only means something if a
+# credible design rules out confounding, reverse causality, and omitted variables — a bare
+# regression on observational data is "correlation implies causation" dressed in math. The danger
+# isn't a low R^2; it's a precisely-estimated, well-fit, *unidentified* coefficient. So the bar is:
+# a stated identification strategy (IV / diff-in-diff / RDD / fixed effects), inference robust to
+# heteroskedasticity and within-cluster correlation, multiple-hypothesis correction when many
+# specifications were run, and ideally a pre-analysis plan. Significance ALONE is not enough — with
+# a large n a trivial coefficient clears any p-bar, so a practical effect floor applies too.
+# Out-of-sample / leakage are WAIVED: an econometric estimate is an in-sample causal parameter, not
+# a forecast, so demanding a holdout would mis-fire on every honest paper.
+thresholds:
+  suspicious_accuracy: 1.0          # 'accuracy'/'win_rate' isn't the econometric quantity — don't auto-suspect a high value
+  hard_min_sample: 30               # below ~30 observations, an estimate is anecdote (CRITICAL)
+  min_sample: 100                   # below this it's thin (HIGH)
+  max_p: 0.05                       # a coefficient must be distinguishable from zero
+  marginal_p_floor: 0.01            # 0.01 < p <= 0.05 is just-significant — fragile, not established
+  min_effect_size: 0.1              # significant-but-negligible is large-n p-hacking; demand a practical effect
+  min_lift: 0.0
+  require_out_of_sample: false      # a causal parameter is in-sample by construction, not a forecast
+  require_leakage_check: false      # look-ahead/leakage is a forecasting concept; N/A for an estimate
+facts:
+  - id: identification_and_inference
+    domain_keywords:
+      [regression, coefficient, estimate, elasticity, treatment effect, causal effect,
+       econometric, panel, instrument, observational, cross-sectional, difference-in-differences]
+    # NB: keep canonical terms specific so none is a SUBSTRING of a forbidden term — a canonical
+    # substring inside a forbidden phrase silently SUPPRESSES the flag (the gate cancels a
+    # forbidden-with-canonical match by design). Concretely: do NOT use a bare "controlled" (it sits
+    # inside the forbidden "uncontrolled"), a bare "identified" (inside "unidentified"), or a bare
+    # "robust"/"clustered" without "standard errors". The honest negation "correlation does NOT imply
+    # causation" is safe: it does not contain the contiguous forbidden substring "correlation implies
+    # causation". "exogenous" is safe too — it is NOT a substring of the forbidden "endogenous".
+    canonical_terms:
+      [identification strategy, instrumental variable, difference-in-differences, diff-in-diff,
+       regression discontinuity, fixed effects, natural experiment, exogenous variation,
+       clustered standard errors, robust standard errors, confounder-adjusted,
+       multiple-comparison correction, bonferroni, pre-analysis plan, pre-registered]
+    forbidden_terms:
+      [correlation implies causation, no controls, uncontrolled, unidentified, p-hacked, p-hacking,
+       data dredging, reverse causality, omitted variable bias, endogenous regressor,
+       spurious regression, cherry-picked specification]
+    severity: CRITICAL

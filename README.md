@@ -140,8 +140,10 @@ verity check-batch claims.jsonl --truth truths/trading.yaml       # tuned to you
 Ready-made **domain packs** live in [`truths/`](truths/) — `ml-classification`, `trading`,
 `ab-test`, `research`, plus high-stakes science: `clinical-trials` (pre-specified endpoint + CI),
 `genomics` (genome-wide significance `p < 5e-8`, not `0.05`), `epidemiology` (adjust for confounders
-+ multiplicity). So the same `0.72` is auto-suspect for a trading signal but fine for a classifier,
-and a GWAS hit at `p=1e-5` is correctly refused. Point `--truth` at one, or tune your own.
++ multiplicity), `economics`, `ml-security`, `neuroscience` — **ten packs** in all. So the same
+`0.72` is auto-suspect for a trading signal but fine for a classifier, a GWAS hit at `p=1e-5` is
+correctly refused, and an "obfuscated-gradients" robustness claim is flagged. Point `--truth` at one,
+or tune your own.
 The **exit code is the worst verdict** (`0` PASS · `1` WARN · `2` REFUSE), so it gates CI like a
 linter. Drop the bundled **GitHub Action** into any workflow:
 ```yaml
@@ -174,6 +176,12 @@ def test_model_card_is_honest():
 from verity import verified
 @verified
 def evaluate(): return {"accuracy": 0.99, "sample_size": 5}   # raises: verity REFUSE
+```
+
+Point it at a **README or model card** to gate the numbers it brags about, or run it as a **service**:
+```sh
+verity verify-markdown README.md     # check every ```json claim block in a doc (exit = worst verdict)
+verity serve                         # POST /verify over HTTP — verify-as-a-service, stdlib only
 ```
 
 ## What it checks

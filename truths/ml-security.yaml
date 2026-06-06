@@ -1,0 +1,31 @@
+# Domain pack: ML SECURITY / ADVERSARIAL ROBUSTNESS.
+# A robustness claim is only as strong as the attack it survived. The field's whole history is
+# defenses that looked robust under a weak attack and collapsed under an adaptive one (Athalye et al.
+# 2018 broke 7 of 9 ICLR defenses — all were gradient masking / obfuscated gradients). So a credible
+# claim MUST state an explicit threat model (norm, budget) and report accuracy under an ADAPTIVE
+# attack — the strongest known, not the weakest convenient one. "Security through obscurity",
+# obfuscated gradients, gradient masking, and FGSM-only / non-adaptive evaluation are the classic
+# tells of a defense that is not actually robust. Robust ACCURACY itself can legitimately be high, so
+# it is NOT auto-suspect; and robustness is not out-of-sample generalization, so that check is off.
+thresholds:
+  suspicious_accuracy: 1.0          # high robust accuracy is the goal here — don't auto-suspect it
+  hard_min_sample: 100              # robustness measured on < 100 examples is noise (CRITICAL)
+  min_sample: 1000                  # below this the robust-accuracy estimate is thin (HIGH)
+  require_out_of_sample: false      # adversarial robustness is not held-out generalization
+  require_leakage_check: false      # the analogous discipline here is the adaptive-attack fact below
+  min_z: 2.0
+facts:
+  - id: adaptive_threat_model
+    domain_keywords: [robust, robustness, adversarial, perturbation, attack, defense, evasion,
+                      epsilon, linf, certified accuracy]
+    # NB on the canonical-substring trap (the gate suppresses a forbidden term when ANY canonical
+    # term is a substring of the text): "adaptive attack" is a substring of the forbidden phrasing
+    # "non-adaptive attack", so a weak-eval claim that literally writes "non-adaptive attack" would
+    # self-suppress. That is an inherent property of the substring matcher, not a pack bug — the bad
+    # claim simply must not also assert canonical evidence (the test exercises a "non-adaptive,
+    # single-step attack only" phrasing that trips cleanly). Keep canonical terms specific for the
+    # same reason genomics/epidemiology do.
+    canonical_terms: [adaptive attack, threat model, certified, autoattack]
+    forbidden_terms: [security through obscurity, obfuscated gradients, gradient masking,
+                      non-adaptive, broken defense, fgsm-only, single-step attack only]
+    severity: CRITICAL

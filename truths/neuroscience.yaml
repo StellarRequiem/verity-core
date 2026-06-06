@@ -1,0 +1,30 @@
+# Domain pack: NEUROIMAGING / fMRI.
+# A brain-imaging claim runs a hypothesis test at every voxel (tens of thousands), so the cardinal
+# sin is reporting a result UNCORRECTED for multiple comparisons — an "uncorrected whole-brain
+# p<0.001" map is a near-guaranteed false-positive cluster (the dead-salmon result). Correction
+# across voxels is mandatory: cluster-level FWE, FDR, or a permutation test. The other classic
+# failure is CIRCULAR ANALYSIS / double dipping — selecting voxels by the effect, then "measuring"
+# that same effect in them (the "voodoo correlations" critique). fMRI is also chronically
+# UNDERPOWERED, so an adequate sample floor matters; out-of-sample is N/A (a single imaging study
+# is not an ML holdout), but significance and multiplicity-correction are non-negotiable.
+thresholds:
+  suspicious_accuracy: 1.0          # 'accuracy' is not the imaging metric — don't auto-suspect it
+  hard_min_sample: 15               # below ~15 subjects an fMRI effect is noise (CRITICAL)
+  min_sample: 30                    # under ~30 it is underpowered / thin (HIGH)
+  max_p: 0.05                       # at the CLUSTER/peak level AFTER correction
+  marginal_p_floor: 0.01            # a just-corrected p is fragile, not confirmatory
+  min_effect_size: 0.1              # a detectable-but-negligible BOLD effect is large-n noise
+  require_out_of_sample: false      # a single imaging study is not an ML holdout
+  require_leakage_check: false      # leakage is not the fMRI failure mode; circularity is (facts)
+facts:
+  - id: multiple_comparison_correction
+    domain_keywords: [voxel, fmri, bold, brain, neuroimaging, cluster, contrast, activation, roi, eeg, meg]
+    # Keep canonical terms SPECIFIC and NON-SUBSTRING of any forbidden term: a generic "corrected"
+    # would substring-match the forbidden "uncorrected" and silently suppress the flag (the gate
+    # suppresses forbidden-with-canonical by design — see gate._match_facts). "cluster-corrected"
+    # cannot, so we name the correction explicitly rather than relying on the bare word.
+    canonical_terms: [cluster-corrected, fdr, permutation test, pre-registered roi, family-wise error,
+                      tfce, small-volume correction]
+    forbidden_terms: [uncorrected, double dipping, double-dipping, circular analysis,
+                      voodoo correlation, whole-brain p<0.001, non-independent, vibration of effects]
+    severity: CRITICAL

@@ -24,7 +24,9 @@ from pathlib import Path
 
 from . import eval as _eval
 from . import external_eval as _external_eval
+from . import server as _server
 from .gate import check, format_block, format_verify_block, load_truth
+from .markdown import verify_markdown
 from .verify import verify
 
 _RANK = {"PASS": 0, "WARN": 1, "REFUSE": 2}
@@ -132,6 +134,26 @@ def _cmd_eval_external(args) -> int:
     return _external_eval.main([args.path] if args.path else [])
 
 
+def _cmd_verify_markdown(args) -> int:
+    """Extract fenced ```json claim blocks from a README / model card and verify each (exit=worst)."""
+    results = verify_markdown(Path(args.path).read_text(encoding="utf-8"), _truth(args.truth))
+    if not results:
+        print(f"verity verify-markdown — no ```json claim blocks found in {args.path}")
+        return 0
+    print(f"verity verify-markdown — {len(results)} claim(s) in {args.path}:")
+    for r in results:
+        name = str(r["claim"].get("name") or r["claim"].get("text", "?"))[:56]
+        top = r["issues"][0]["detail"] if r["issues"] else "clears the bar"
+        print(f"  [{r['verdict']:6}] {name}  —  {top}")
+    return _RANK.get(_worst(results), 1)
+
+
+def _cmd_serve(args) -> int:  # pragma: no cover — blocking server entrypoint
+    """Run verify-as-a-service over HTTP (blocking; Ctrl-C to stop)."""
+    _server.run(port=args.port)
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
         prog="verity",
@@ -177,6 +199,16 @@ def main(argv=None) -> int:
     px.add_argument("path", nargs="?", metavar="BENCHMARK.jsonl",
                     help="optional path (defaults to eval/external/score-replication.jsonl)")
     px.set_defaults(func=_cmd_eval_external)
+
+    pm = sub.add_parser("verify-markdown", help="extract ```json claims from a markdown file "
+                                                "(README / model card) and verify each")
+    pm.add_argument("path", metavar="FILE.md", help="markdown file to scan for json claim blocks")
+    pm.add_argument("--truth", metavar="PATH", help="optional ground-truth YAML (thresholds + facts)")
+    pm.set_defaults(func=_cmd_verify_markdown)
+
+    ps = sub.add_parser("serve", help="run verify-as-a-service over HTTP (POST /verify · GET /health)")
+    ps.add_argument("--port", type=int, default=8848, help="port to bind (default 8848)")
+    ps.set_defaults(func=_cmd_serve)
 
     args = p.parse_args(argv)
     return args.func(args)
