@@ -161,6 +161,14 @@ Or gate it **before the commit even lands** — verity ships a [pre-commit](http
       files: results/claims\.jsonl$
 ```
 
+Or assert it **inside your test suite** — a REFUSE fails the test:
+```python
+from verity import assert_verified
+def test_model_card_is_honest():
+    assert_verified({"accuracy": 0.87, "sample_size": 5000, "out_of_sample": True,
+                     "leakage_checked": True, "base_rate": 0.51})
+```
+
 ## What it checks
 
 - **structural** — sample floors (too small = noise), suspicious **and impossible** accuracy

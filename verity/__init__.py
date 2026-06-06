@@ -14,8 +14,9 @@ As an MCP tool (any agent can call the gate to check itself)::
 """
 from .audit import AuditChain, entry_hash
 from .gate import check, format_block, format_verify_block, load_truth
+from .testing import assert_verified
 from .verify import verify
 
 __version__ = "0.1.0"
 __all__ = ["check", "load_truth", "format_block", "format_verify_block", "verify",
-           "AuditChain", "entry_hash"]
+           "assert_verified", "AuditChain", "entry_hash"]
