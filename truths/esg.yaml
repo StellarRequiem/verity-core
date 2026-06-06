@@ -1,0 +1,103 @@
+# Domain pack: SUSTAINABILITY / ESG / EMISSIONS claims (greenwashing detection).
+# This is the verify-the-claimed-decarbonization layer. An ESG / emissions claim is trustworthy only
+# when it (a) doesn't lean on phantom carbon — offsets that are double-counted or have no
+# additionality, (b) accounts for the WHOLE footprint including the value chain (scope 3), (c) is
+# measured against an honest, fixed baseline rather than one rebaselined to flatter the trend, and
+# (d) carries independent third-party assurance rather than being self-reported and unaudited.
+#
+# This is a FACTS-heavy domain, not a statistical one. There is no p-value or accuracy in
+# "we cut emissions 40% vs 2019" — the lie lives in HOW the number was constructed (the offset
+# quality, the scope boundary, the baseline year, the assurance), not in a significance test. So the
+# structural/statistical knobs are set PERMISSIVE (no OOS, no leakage, no significance floor — those
+# are ML/experiment notions a corporate emissions disclosure does not have) and the entire burden
+# falls on the four ground-truth facts below. The sample floor stays at the universal default only as
+# a sanity check on any disclosed count; it is not the load-bearing mechanism here.
+#
+# Severities are graded by how fatal the failure is to the headline claim:
+#   * offsets with no additionality / double-counting are FABRICATION-CLASS — the "reduction" never
+#     happened (CRITICAL);
+#   * a scope-1-only boundary or a cherry-picked/rebaselined year MATERIALLY misstates the trend but
+#     the disclosed in-boundary number can still be real (HIGH);
+#   * self-reported-and-unaudited is a credibility gap, not proof of a lie (MEDIUM).
+#
+# Threshold note: nothing here is tuned to flatter a corpus. The statistical knobs are simply turned
+# OFF (permissive) because the domain is non-statistical — the principled choice the task calls for,
+# not a benchmark-chasing one. suspicious_accuracy stays at the no-op 1.0: a high % reduction is the
+# stated GOAL of a credible transition plan, never auto-suspect (the danger is a fake reduction, which
+# the offset/scope/baseline facts catch directly — not a "too good" number).
+thresholds:
+  suspicious_accuracy: 1.0          # a high % emissions cut is the GOAL, not an ML accuracy — never auto-suspect
+  hard_min_sample: 30               # universal anecdote floor; a sanity check on any disclosed count, not the mechanism
+  min_sample: 100
+  require_out_of_sample: false      # a corporate emissions disclosure is not an ML holdout — no OOS notion
+  require_leakage_check: false      # look-ahead leakage is an ML concept; here the danger is offsets/scope/baseline
+  require_confidence_interval: false # an emissions figure is an inventory total, not a point estimate needing a CI
+facts:
+  # ── (1) CARBON OFFSETS / ADDITIONALITY (CRITICAL) ───────────────────────────────────────────────
+  # The fabrication-class failure: a claimed reduction that rests on offsets which never removed a net
+  # ton — credits double-counted (sold and also kept against the corporate target), or with no
+  # additionality (paying for forest/avoided-emissions that would have happened anyway). When this is
+  # the basis of the headline, the "reduction" did not occur. The honest counterparts are an offset
+  # that is additional, permanent, verified to a recognized standard, and retired (not resold).
+  # SUBSTRING-TRAP CHECK: no canonical term is a substring of any forbidden term. "additional and
+  # permanent" / "verified removal" / "retired credits" / "gold standard verified" do NOT appear
+  # inside "no additionality" / "double-counted offsets" / "double counting" / "phantom credits" /
+  # "avoided-emissions credits" / "unverified offsets". (In particular the canonical signal for
+  # additionality is the AFFIRMATIVE "additional and permanent", never the bare word "additionality"
+  # — which would be a substring of the forbidden "no additionality" and silently suppress it.)
+  - id: offset_additionality
+    domain_keywords: [offset, offsets, carbon credit, credits, additionality, removal, sequestration,
+                      reforestation, avoided emissions, carbon neutral, net zero]
+    canonical_terms: [additional and permanent, verified removal, retired credits, gold standard verified]
+    forbidden_terms: [no additionality, double-counted offsets, double counting, phantom credits,
+                      avoided-emissions credits, unverified offsets]
+    severity: CRITICAL
+  # ── (2) SCOPE COVERAGE / VALUE CHAIN (HIGH) ─────────────────────────────────────────────────────
+  # The boundary-gaming failure: reporting scope 1 (direct) and maybe scope 2 (purchased energy) while
+  # omitting scope 3 (the value chain — usually the great majority of a company's footprint). A
+  # "carbon neutral" claim drawn on a scope-1-only boundary materially misstates the real total. The
+  # honest counterpart accounts for the full value chain across all three scopes.
+  # SUBSTRING-TRAP CHECK: "full value chain" / "scope 3 included" / "all three scopes" are NOT
+  # substrings of "scope 1 only" / "scope-1 only" / "scope 3 excluded" / "omits scope 3" /
+  # "partial value chain" / "value chain excluded". Note "scope 3 included" vs forbidden "scope 3
+  # excluded" — different trailing word, neither contains the other.
+  - id: scope_coverage
+    domain_keywords: [scope 1, scope 2, scope 3, emissions, footprint, value chain, ghg, inventory,
+                      boundary, carbon neutral]
+    canonical_terms: [full value chain, scope 3 included, all three scopes]
+    forbidden_terms: [scope 1 only, scope-1 only, scope 3 excluded, omits scope 3,
+                      partial value chain, value chain excluded]
+    severity: HIGH
+  # ── (3) BASELINE INTEGRITY (HIGH) ───────────────────────────────────────────────────────────────
+  # The denominator-gaming failure: choosing or moving the baseline year to flatter the trend —
+  # rebaselining to a high-emissions year so the % cut looks bigger, or cherry-picking the baseline.
+  # The honest counterpart is a fixed base year, a science-based target, and a recalculation policy
+  # that adjusts the baseline only for structural changes (acquisitions/divestitures), disclosed.
+  # SUBSTRING-TRAP CHECK: "fixed base year" / "science-based target" / "base year recalculation
+  # policy" are NOT substrings of "rebaselined to flatter" / "cherry-picked baseline" /
+  # "cherry-picked base year" / "shifted baseline year" / "inflated baseline". ("fixed base year"
+  # shares the words "base year" with "cherry-picked base year" but is not a substring of it.)
+  - id: baseline_integrity
+    domain_keywords: [baseline, base year, reduction, target, trajectory, vs 2019, vs 2020,
+                      decarbonization, reduction target]
+    canonical_terms: [fixed base year, science-based target, base year recalculation policy]
+    forbidden_terms: [rebaselined to flatter, cherry-picked baseline, cherry-picked base year,
+                      shifted baseline year, inflated baseline]
+    severity: HIGH
+  # ── (4) THIRD-PARTY ASSURANCE (MEDIUM) ──────────────────────────────────────────────────────────
+  # The credibility-gap failure: figures that are self-reported and unaudited, with no independent
+  # assurance. This is a MEDIUM, not a CRITICAL — unaudited does not prove the number is false, only
+  # that no third party stood behind it. The honest counterpart is an independent, limited- or
+  # reasonable-assurance engagement against a recognized standard.
+  # SUBSTRING-TRAP CHECK (the deliberate one): the obvious canonical "third-party assurance" is a
+  # SUBSTRING of the forbidden "no third-party assurance" — using it would let that very forbidden
+  # phrase ALSO match a canonical and SILENTLY SUPPRESS the flag. So the canonical signals are the
+  # specific "independently assured" / "reasonable assurance opinion" / "limited assurance opinion",
+  # none of which is a substring of any forbidden term below.
+  - id: third_party_assurance
+    domain_keywords: [assurance, audited, verified, attestation, disclosure, reported, esg report,
+                      sustainability report]
+    canonical_terms: [independently assured, reasonable assurance opinion, limited assurance opinion]
+    forbidden_terms: [self-reported and unaudited, unaudited, no third-party assurance,
+                      no external assurance, self-attested]
+    severity: MEDIUM

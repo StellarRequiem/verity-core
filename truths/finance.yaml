@@ -1,0 +1,90 @@
+# Domain pack: FINANCE / EARNINGS / FINANCIAL-REPORT claims.
+# The verify-the-numbers-in-the-earnings-release layer. Distinct from business.yaml (which targets
+# operational KPIs and supply-chain fulfilment): this pack targets the reported FINANCIAL statements —
+# how earnings, revenue, growth, and the headline period are constructed and disclosed. The danger is
+# not a low number; it is a flattering one assembled by an accounting choice the reader can't see:
+# a non-GAAP figure with no reconciliation, revenue *booked* but not yet *earned* (channel-stuffing /
+# bill-and-hold), a hand-picked reporting window with an undefined cohort/denominator, and growth that
+# is really an acquisition wearing an "organic" label. These map to four real, recurring restatement
+# causes (SEC AAERs, the SEC's Non-GAAP C&DIs, ASC 606 revenue-recognition, and Reg G).
+#
+# Most structural knobs are N/A here: a single-period aggregate (quarterly revenue, EPS) is not an ML
+# accuracy and carries no holdout / leakage / out-of-sample notion, so those are waived and
+# suspicious_accuracy is 1.0 (a high margin is not auto-suspect — a finance figure is not a win-rate).
+# The ONE statistical knob that applies is the sample floor, and ONLY for cohort / retention / churn
+# metrics (e.g. a quarterly retention rate). For those the floor is binomial-grounded: with n < 30 a
+# Wald/normal proportion CI is invalid (the np ≥ 5 rule of thumb fails at any extreme rate), so a
+# cohort rate on < 30 accounts is anecdote (CRITICAL); n < 100 keeps a 95% proportion CI half-width
+# above ~±10pts even at p≈0.5 (1.96·sqrt(0.25/100) ≈ 0.098), so it is thin (HIGH). These are the
+# standard binomial-CI sample floors, NOT tuned to any corpus. For a single-period aggregate there is
+# no sample to floor — those claims simply omit sample_size and the floor never fires.
+thresholds:
+  suspicious_accuracy: 1.0          # a margin / growth rate / retention is not ML accuracy — never auto-suspect
+  hard_min_sample: 30               # cohort/retention floor: n<30 invalidates a normal proportion CI (np≥5 fails) — anecdote (CRITICAL)
+  min_sample: 100                   # n<100 leaves a 95% proportion CI half-width >~±10pts at p≈0.5 — thin (HIGH)
+  max_p: 0.05                       # if a significance test IS disclosed (rare here) it must clear the standard cut
+  marginal_p_floor: 0.01            # just-significant (0.01<p≤0.05) is fragile — the standard literature cut
+  min_lift: 0.0                     # a rate must actually beat its stated baseline, not tie it
+  require_out_of_sample: false      # an earnings figure is a realized period, not an ML holdout — N/A
+  require_leakage_check: false      # look-ahead/leakage is a forecasting notion; a reported result is backward-looking — N/A
+facts:
+  # ── (1) NON-GAAP RECONCILIATION ────────────────────────────────────────────────────────────────
+  # SEC Reg G + the Non-GAAP C&DIs require every non-GAAP measure to be reconciled to the most
+  # directly comparable GAAP figure, with GAAP given equal-or-greater prominence. The classic abuse:
+  # headline "adjusted"/"non-GAAP" earnings (add-backs for SBC, restructuring, "one-time" items that
+  # recur) presented with NO reconciliation, so the reader cannot get back to GAAP. CRITICAL — this is
+  # the single most common SEC comment-letter and AAER trigger.
+  # SUBSTRING TRAP (deliberately avoided): a bare canonical "gaap" is a SUBSTRING of every forbidden
+  # phrase here ("non-gaap (unreconciled)" etc.) and would silently suppress the flag. So the canonical
+  # signals are the specific "gaap-reconciled" / "reconciliation to gaap" / "reg g reconciliation" —
+  # none of which is a substring of any forbidden term. "reconciled to gaap" is likewise safe.
+  - id: nongaap_reconciliation
+    domain_keywords: [non-gaap, adjusted earnings, adjusted ebitda, adjusted eps, addback, add-back, pro forma, earnings, ebitda]
+    canonical_terms: [gaap-reconciled, reconciliation to gaap, reconciled to gaap, reg g reconciliation, gaap measure]
+    forbidden_terms: [non-gaap (unreconciled), adjusted earnings without reconciliation, unreconciled adjustments, no gaap reconciliation, recurring item as one-time]
+    severity: CRITICAL
+  # ── (2) REVENUE RECOGNITION vs BOOKING / CHANNEL-STUFFING ───────────────────────────────────────
+  # Under ASC 606 revenue is earned when control transfers and the performance obligation is satisfied
+  # — NOT when an order is booked, a bill-and-hold invoice is cut, or product is pushed into the
+  # channel to pull future sales forward (channel-stuffing). The honest signals describe the EARNED
+  # side: recognized revenue under ASC 606, measured by sell-through, with revenue earned on delivery.
+  # HIGH — a contradiction here warns; sustained, it is the road to a restatement.
+  # SUBSTRING CHECK: "recognized revenue" / "sell-through" / "revenue earned on delivery" are each
+  # NOT substrings of any forbidden phrase below. "asc 606" likewise stands alone.
+  - id: revenue_recognition
+    domain_keywords: [revenue, recognition, recognized, bookings, sales, deferred, billings, invoiced, shipped]
+    canonical_terms: [recognized revenue, asc 606, sell-through, revenue earned on delivery, performance obligation satisfied]
+    forbidden_terms: [channel-stuffing, channel stuffing, bookings counted as revenue, bill-and-hold, revenue pulled forward, billed but not earned]
+    severity: HIGH
+  # ── (3) REPORTING PERIOD / DEFINED COHORT & DENOMINATOR ─────────────────────────────────────────
+  # A headline number is only comparable over a real, like-for-like period with a stated denominator
+  # and cohort. The abuses: a cherry-picked window (a 53-week year, a stub period, a hand-picked
+  # start), an undefined cohort, an undefined/shifting denominator, or a 13-week vs 14-week
+  # apples-to-oranges compare. The honest signals name the basis: like-for-like, trailing twelve
+  # months, a comparable period, a stated denominator, a stated cohort. HIGH.
+  # SUBSTRING TRAP (deliberately avoided): do NOT use a bare "defined cohort" — it is a SUBSTRING of
+  # the forbidden "undefined cohort" and would self-suppress it; likewise "defined denominator" sits
+  # inside "undefined denominator". So the canonicals are "stated cohort" / "stated denominator"
+  # instead, neither of which is a substring of any forbidden term. "comparable period" is NOT inside
+  # "cherry-picked period". "trailing twelve months" / "like-for-like" stand clear.
+  - id: period_cohort_denominator
+    domain_keywords: [period, quarter, year-over-year, comparable, cohort, denominator, window, fiscal, reporting, like-for-like]
+    canonical_terms: [like-for-like, trailing twelve months, comparable period, stated denominator, stated cohort]
+    forbidden_terms: [cherry-picked period, undefined cohort, undefined denominator, stub period, 53-week year, apples-to-oranges period]
+    severity: HIGH
+  # ── (4) ORGANIC vs ACQUIRED GROWTH ──────────────────────────────────────────────────────────────
+  # A headline "growth" number that folds in an acquisition's revenue is not the same business growing
+  # — it is M&A wearing an organic label. The honest disclosure separates the two: organic-only growth
+  # that excludes acquisitions (same-store / constant-perimeter), with an acquisition contribution
+  # broken out. MEDIUM — a softer flag (a WARN), since conflation is often sloppy rather than fraudulent,
+  # but it still misleads on the durable run-rate.
+  # SUBSTRING TRAP (deliberately avoided): a bare "organic growth" is a SUBSTRING of the forbidden
+  # "inorganic growth as organic" (…in[organic growth] as organic), so using it would self-suppress
+  # that flag. The canonicals therefore avoid the bare phrase entirely: "organic-only growth",
+  # "excludes acquisitions", "same-store growth", "constant perimeter", "acquisition contribution
+  # broken out" — none is a substring of any forbidden term here.
+  - id: organic_vs_acquired
+    domain_keywords: [organic, inorganic, acquisition, acquired, m&a, growth, perimeter, same-store, constant-perimeter]
+    canonical_terms: [organic-only growth, excludes acquisitions, same-store growth, constant perimeter, acquisition contribution broken out]
+    forbidden_terms: [acquired growth as organic, inorganic growth as organic, m&a-inflated growth, acquisition counted as organic]
+    severity: MEDIUM

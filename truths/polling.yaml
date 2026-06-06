@@ -1,0 +1,103 @@
+# Domain pack: POLLING / SURVEY / OPINION-POLL claims.
+# The verify-the-poll-is-actually-a-poll layer. A survey number is trustworthy only when the sample
+# was drawn so it can speak for the population (a probability sample, not a self-selected click-in),
+# carries a stated margin of error, asks neutral questions, and discloses how nonresponse was
+# handled. The danger is the dressed-up straw poll: an opt-in SurveyMonkey/website panel sold as
+# "representative," a headline with no margin of error, a push-poll engineered to produce its answer,
+# and an undisclosed single-digit response rate with no weighting. These are exactly the failures the
+# AAPOR Standard Definitions and the polling-disclosure literature were written to catch.
+#
+# WHY these thresholds (literature-grounded, NOT tuned to any corpus):
+#  * hard_min_sample 300  — the binomial margin of error at p=0.5 is 1.96*sqrt(0.25/300) ≈ ±5.66%.
+#                           Below ~300 a survey estimate is wider than ±5.7% and cannot resolve the
+#                           differences pollsters report; treat as anecdote (CRITICAL).
+#  * min_sample 1000      — 1.96*sqrt(0.25/1000) ≈ ±3.10%, the ~±3% MOE that is the de-facto industry
+#                           standard for a national poll. Between 300 and 1000 the poll is "thin."
+#  * require_confidence_interval true — a poll WITHOUT a reported margin of error is, by AAPOR
+#                           disclosure standards, an incomplete result: a point estimate that lies.
+#  * min_effect_size 0.03 — "a lead within the MOE is not a lead." At n=1000 a single-candidate MOE is
+#                           ~±3.1% and the margin-of-error ON A LEAD (a difference of two proportions)
+#                           is larger still; a sub-3-point gap is statistically a tie, not a lead. The
+#                           gate reads effect_size / (accuracy − base_rate) as the lead in proportion
+#                           units, so 0.03 is the practical floor below which a "lead" is noise.
+#  * suspicious_accuracy 1.0 — a survey percentage (a share of respondents) is NOT an ML accuracy; a
+#                           high share (e.g. 0.82 approval) is not auto-suspect. Don't borrow the
+#                           trading pack's 0.65 auto-suspect here.
+# OOS / leakage are waived — a survey is a one-shot measurement of a population, not an ML holdout, so
+# there is no out-of-sample split or look-ahead leakage to require. The burden falls on the sampling
+# frame, the margin of error, neutral wording, and nonresponse disclosure.
+thresholds:
+  suspicious_accuracy: 1.0          # a survey share is not ML accuracy — never auto-suspect a high %
+  hard_min_sample: 300              # ±5.66% binomial MOE at p=0.5 — below this is anecdote (CRITICAL)
+  min_sample: 1000                  # ±3.10% MOE — the industry-standard national-poll floor; below = thin
+  max_p: 0.05
+  marginal_p_floor: 0.01            # just-significant (0.01 < p ≤ 0.05) is fragile, not confirmatory
+  min_effect_size: 0.03             # a lead < ~3pt at n≈1000 is within the MOE — a tie, not a lead
+  require_out_of_sample: false      # a survey is a one-shot population measurement, not an ML holdout
+  require_leakage_check: false      # look-ahead leakage is an ML concept; not the survey failure mode
+  require_confidence_interval: true # a poll with NO margin of error is an incomplete result by AAPOR
+facts:
+  # ── (1) SAMPLING FRAME — can this sample speak for the population? ──────────────────────────────
+  # The cardinal sin of survey research: a non-probability, self-selected sample (an opt-in web panel,
+  # a website/SMS straw poll, a "click to vote") presented as if it represented the population. Only a
+  # probability sample — every member of the frame has a known, nonzero chance of selection — supports
+  # a generalizable estimate (random-digit-dial, address-based sampling, a properly weighted panel).
+  # SUBSTRING-TRAP CHECK: bare "probability sample" would be a SUBSTRING of forbidden "non-probability
+  # sample" and silently suppress it, so the canonical is the specific "probability-based sample" (the
+  # "-based" form is NOT inside "non-probability sample"). The other canonicals ("random-digit-dial",
+  # "address-based sampling", "weighted to the population") are likewise not substrings of any
+  # forbidden phrase, so an honest sampling claim is not flagged and every forbidden term stays live.
+  - id: sampling_frame
+    domain_keywords: [poll, survey, sample, respondents, representative, population, voters, panel, electorate, polled]
+    canonical_terms: [probability-based sample, random-digit-dial, address-based sampling, weighted to the population]
+    forbidden_terms: [non-probability sample, self-selected sample, opt-in web panel, convenience sample, straw poll claimed representative]
+    severity: CRITICAL
+  # ── (2) MARGIN OF ERROR — is the uncertainty disclosed? ────────────────────────────────────────
+  # A poll reported as a bare point estimate ("Candidate A leads 48%") with no margin of error is, by
+  # AAPOR disclosure standards, incomplete: the reader cannot tell a real lead from sampling noise.
+  # The honest counterpart states a margin of error / confidence interval and, crucially, that a lead
+  # inside that margin is a statistical tie. This pairs with the structural require_confidence_interval
+  # check (which fires on the numeric claim) to catch the omission in prose too.
+  # SUBSTRING-TRAP CHECK: bare "confidence interval" would be a SUBSTRING of forbidden "no confidence
+  # interval" and silently suppress it, so the canonical is the specific "confidence interval stated"
+  # (NOT inside "no confidence interval"). Likewise "margin of error reported" is NOT a substring of
+  # "no margin of error" / "without a margin of error", and "within the margin of error" is NOT a
+  # substring of "lead within the margin called decisive" (different tail) — so the honest caveat does
+  # not suppress the overreach flag, and every forbidden term stays live.
+  - id: margin_of_error
+    domain_keywords: [poll, survey, lead, margin, error, estimate, percentage, points, ahead, percent]
+    canonical_terms: [margin of error reported, confidence interval stated, within the margin of error]
+    forbidden_terms: [no margin of error, without a margin of error, no confidence interval, lead within the margin called decisive]
+    severity: HIGH
+  # ── (3) QUESTION WORDING — is the instrument neutral? ──────────────────────────────────────────
+  # A push poll / leading question manufactures its own result: loaded wording, a one-sided framing, or
+  # a "have you stopped..." presupposition pushes respondents to the desired answer, so the number
+  # measures the question, not opinion. The honest counterpart is neutral, balanced wording that has
+  # been split-sample / pretested.
+  # SUBSTRING-TRAP CHECK: canonical "neutral wording" / "balanced question" / "split-sample tested" —
+  # none is a substring of any forbidden phrase ("leading question", "push poll", "loaded wording",
+  # "one-sided framing", "presupposing question"). "balanced question" is NOT inside any forbidden
+  # phrase; "wording" appears in both "neutral wording" (canonical) and "loaded wording" (forbidden)
+  # but as SEPARATE phrases — the canonical "neutral wording" is not a substring of "loaded wording".
+  - id: question_wording
+    domain_keywords: [poll, survey, question, wording, asked, respondents, framing, questionnaire, phrasing]
+    canonical_terms: [neutral wording, balanced question, split-sample tested]
+    forbidden_terms: [push poll, leading question, loaded wording, one-sided framing, presupposing question]
+    severity: HIGH
+  # ── (4) NONRESPONSE / RESPONSE RATE — is who-didn't-answer accounted for? ──────────────────────
+  # A single-digit response rate is the modern norm, but it only threatens validity when nonresponse
+  # is ignored: an undisclosed response rate with no nonresponse weighting means the people who
+  # answered may not look like those who didn't, and nothing was done to correct it. The honest
+  # counterpart discloses the response rate (AAPOR RR3) and applies nonresponse / demographic weighting
+  # (raking) so the achieved sample matches population benchmarks.
+  # SUBSTRING-TRAP CHECK: bare "nonresponse weighting" would be a SUBSTRING of forbidden "no
+  # nonresponse weighting" (which just prepends "no ") and silently suppress it, so the canonical is
+  # the specific "nonresponse-weighted" (hyphenated; NOT inside "no nonresponse weighting"). The
+  # others ("response rate disclosed", "raked to benchmarks", "aapor rr3") are not substrings of any
+  # forbidden phrase either, so the honest disclosure is not flagged and the forbidden flag still
+  # fires. MEDIUM: a quality gap, not fabrication-class.
+  - id: nonresponse_weighting
+    domain_keywords: [poll, survey, response rate, nonresponse, weighting, raking, respondents, completion, contacted]
+    canonical_terms: [response rate disclosed, nonresponse-weighted, raked to benchmarks, aapor rr3]
+    forbidden_terms: [undisclosed response rate, low response rate unweighted, no nonresponse weighting, unweighted convenience sample]
+    severity: MEDIUM
