@@ -84,6 +84,22 @@ def _worst(results: list[dict]) -> str:
     return max((r["verdict"] for r in results), key=lambda v: _RANK.get(v, 1), default="PASS")
 
 
+def _format_rolled_up(verdict: str, name: str, issues: list[dict]) -> str:
+    """One claim's roll-up line(s): the worst verdict + name + EVERY failing reason.
+
+    A claim routinely violates several rules at once (e.g. a tiny sample AND no lift over the base
+    rate AND no holdout). Reporting only the first reason hides the rest and makes the fix look
+    smaller than it is, so we surface them ALL: the primary line keeps the existing
+    ``[VERDICT] name  —  first reason`` shape (the verdict is the worst across all issues, not just
+    the first), then each remaining reason is listed on its own indented continuation line. A claim
+    that clears the bar has no issues and prints just ``clears the bar``.
+    """
+    details = [i["detail"] for i in issues] or ["clears the bar"]
+    lines = [f"  [{verdict:6}] {name}  —  {details[0]}"]
+    lines += [f"             · {d}" for d in details[1:]]
+    return "\n".join(lines)
+
+
 def _cmd_check(args) -> int:
     raw = Path(args.claim_file).read_text(encoding="utf-8") if args.claim_file else args.claim
     claim = _load_claim(raw)
@@ -107,8 +123,7 @@ def _cmd_check_batch(args) -> int:
           f"{counts['PASS']} PASS · {counts['WARN']} WARN · {counts['REFUSE']} REFUSE")
     for c, r in zip(claims, results):
         name = str(c.get("name") or c.get("text", "?"))[:56]
-        top = r["issues"][0]["detail"] if r["issues"] else "clears the bar"
-        print(f"  [{r['verdict']:6}] {name}  —  {top}")
+        print(_format_rolled_up(r["verdict"], name, r["issues"]))
     return _RANK.get(_worst(results), 1)
 
 
@@ -143,8 +158,7 @@ def _cmd_verify_markdown(args) -> int:
     print(f"verity verify-markdown — {len(results)} claim(s) in {args.path}:")
     for r in results:
         name = str(r["claim"].get("name") or r["claim"].get("text", "?"))[:56]
-        top = r["issues"][0]["detail"] if r["issues"] else "clears the bar"
-        print(f"  [{r['verdict']:6}] {name}  —  {top}")
+        print(_format_rolled_up(r["verdict"], name, r["issues"]))
     return _RANK.get(_worst(results), 1)
 
 

@@ -37,6 +37,33 @@ def test_check_batch_rolls_up_to_worst(tmp_path, capsys):
     assert rc == 2                                   # worst verdict fails the gate
 
 
+def test_check_batch_reports_all_failing_reasons_not_just_the_first(tmp_path, capsys):
+    """A claim that violates MULTIPLE rules must surface ALL of them, not short-circuit on the first.
+
+    verity-demo PR #1's claim: a tiny sample AND no lift over the base rate AND no holdout AND no
+    leakage check. Against the ml-classification pack (hard_min_sample 100, min_lift 0.02) the worst
+    reason is the noise floor, but the claim earns several more — the roll-up must list them all.
+    """
+    truth = REPO_ROOT / "truths" / "ml-classification.yaml"
+    backlog = tmp_path / "multi.jsonl"
+    backlog.write_text(json.dumps(
+        {"name": "fraud-detector v3 (offline)", "accuracy": 0.985, "sample_size": 90,
+         "out_of_sample": False, "base_rate": 0.98, "text": "..."}) + "\n", encoding="utf-8")
+    rc = main(["check-batch", str(backlog), "--truth", str(truth)])
+    out = capsys.readouterr().out
+    assert rc == 2                                              # verdict + exit unchanged: REFUSE
+    assert "1 PASS · 0 WARN · 1 REFUSE" not in out             # (sanity: it's the 1-REFUSE roll-up)
+    assert "0 PASS · 0 WARN · 1 REFUSE" in out
+    # all three advertised rules surface — not only the first (the noise floor)
+    assert "sample 90 < hard floor 100 — noise" in out         # rule 1: sample-size floor
+    assert "base rate 0.98" in out and "no real lift" in out   # rule 2: no lift over base rate
+    assert "not validated out-of-sample" in out                # rule 3: out-of-sample / holdout
+    assert "leakage not affirmatively checked" in out          # (and leakage, also unchecked)
+    # the primary line is unchanged in shape; the extras hang off it as continuation lines
+    assert "[REFUSE] fraud-detector v3 (offline)  —  sample 90 < hard floor 100 — noise" in out
+    assert out.count("·") >= 3                                  # >=3 extra-reason continuation lines
+
+
 def test_check_batch_clean_backlog_passes(tmp_path):
     backlog = tmp_path / "clean.jsonl"
     backlog.write_text(
