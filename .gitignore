@@ -7,3 +7,9 @@ dist/
 .DS_Store
 .venv/
 *.audit.jsonl
+
+# Reality-anchor LOCAL adapters (FIREWALL: bind local/edge systems — never publish)
+verity/anchor_sources_local.py
+verity/*_local.py
+examples/*_local.py
+tests/*_local.py

@@ -28,8 +28,11 @@ from . import server as _server
 from .gate import check, format_block, format_verify_block, load_truth
 from .markdown import verify_markdown
 from .verify import verify
+from .anchor import GitSource, FileSource, anchor, format_anchor_block
+from .audit import AuditChain
 
 _RANK = {"PASS": 0, "WARN": 1, "REFUSE": 2}
+_ANCHOR_RANK = {"PASS": 0, "UNVERIFIABLE": 1, "REFUSE": 2}
 
 
 def _load_claim(s: str) -> dict:
@@ -124,6 +127,18 @@ def _cmd_verify(args) -> int:
     return _RANK.get(res["verdict"], 1)
 
 
+def _cmd_ground(args) -> int:
+    """LIVE grounding: cross-reference a claim against live sources (git HEAD + working tree),
+    print the verdict WITH provenance. Exit = worst verdict (0 PASS · 1 UNVERIFIABLE · 2 REFUSE)."""
+    claim = _load_claim(
+        Path(args.claim_file).read_text(encoding="utf-8") if args.claim_file else args.claim)
+    sources = [GitSource(args.repo, id="git"), FileSource(args.repo, id="file")]
+    ledger = AuditChain(args.ledger) if args.ledger else None
+    r = anchor(claim, sources, ledger=ledger, min_sources=args.min_sources)
+    print(format_anchor_block(claim, r))
+    return _ANCHOR_RANK.get(r.verdict, 1)
+
+
 def _cmd_eval(args) -> int:
     """Run the self-authored regression harness (prints the honesty banner + per-dimension table)."""
     return _eval.main([args.path] if args.path else [])
@@ -187,6 +202,18 @@ def main(argv=None) -> int:
                     help="source identifiers: a JSON array, @path, or a bare comma-separated list")
     pv.add_argument("--truth", metavar="PATH", help="optional ground-truth YAML (thresholds + facts)")
     pv.set_defaults(func=_cmd_verify)
+
+    pg = sub.add_parser("ground", help="LIVE grounding: cross-reference a claim against live "
+                                       "sources (git + working tree) and show provenance")
+    gg = pg.add_mutually_exclusive_group(required=True)
+    gg.add_argument("--claim", metavar="JSON", help="the claim, with a `proof` list of probes")
+    gg.add_argument("--claim-file", metavar="PATH", help="read the claim from a file")
+    pg.add_argument("--repo", metavar="PATH", default=".",
+                    help="repo / working dir the live sources read (default: .)")
+    pg.add_argument("--min-sources", type=int, default=1, metavar="N",
+                    help="independent sources required to corroborate a PASS (default 1)")
+    pg.add_argument("--ledger", metavar="PATH", help="optional append-only audit ledger to log to")
+    pg.set_defaults(func=_cmd_ground)
 
     pe = sub.add_parser("eval", help="run the self-authored known-failure-mode regression harness "
                                      "(circular by construction — prints an honesty banner)")
