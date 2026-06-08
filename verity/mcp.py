@@ -64,6 +64,24 @@ def build_server():
         ok, msg = AuditChain(path).verify()
         return f"{'OK' if ok else 'BROKEN'}: {msg}"
 
+    @server.tool()
+    def ground(claim: dict, repo: str = ".", min_sources: int = 1, ledger_path: str = "") -> str:
+        """LIVE grounding: cross-reference a claim against live sources, with provenance.
+
+        Unlike `verify` (which reconciles against truth you supply), `ground` FETCHES ground
+        truth from the running system itself — git HEAD + the working tree — so an agent can
+        check a claim against reality mid-task. The claim carries a `proof` list of probes:
+          {"name":"x","version":"0.1.0","proof":[{"source":"git","path":"verity/__init__.py",
+           "ref":"HEAD","field":"version","pattern":"__version__ = \\"([^\\"]+)\\""}]}
+        Returns a REALITY-ANCHOR block: verdict (PASS | REFUSE | UNVERIFIABLE) + the provenance
+        trail (which source asserted what, fetched from where). No LLM in the loop.
+        """
+        from .anchor import GitSource, FileSource, anchor, format_anchor_block
+        sources = [GitSource(repo, id="git"), FileSource(repo, id="file")]
+        led = AuditChain(ledger_path) if ledger_path else None
+        r = anchor(claim, sources, ledger=led, min_sources=min_sources)
+        return format_anchor_block(claim, r)
+
     return server
 
 
