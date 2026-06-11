@@ -27,3 +27,7 @@ jobs:
       # Self-test the CLI gate on the clean example backlog — must exit 0 (all PASS).
       - name: CLI self-test (clean backlog passes the gate)
         run: verity check-batch examples/claims.jsonl
+      # Proof-carrying gate: each claim in proofs.jsonl ships a re-runnable command; CI RUNS it
+      # and the number must reproduce. A claim whose proof no longer backs it fails CI here.
+      - name: Proof-carrying self-test (every claim reproduces)
+        run: verity prove-batch examples/proofs.jsonl
