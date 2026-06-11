@@ -1,0 +1,1 @@
+{"name": "demo-classifier accuracy", "metric": "accuracy", "value": 0.9, "proof": "python examples/eval_demo.py", "tolerance": 0.001}

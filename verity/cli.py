@@ -30,6 +30,7 @@ from .markdown import verify_markdown
 from .verify import verify
 from .anchor import GitSource, FileSource, anchor, format_anchor_block
 from .audit import AuditChain
+from .prove import prove, prove_batch, format_prove_block
 
 _RANK = {"PASS": 0, "WARN": 1, "REFUSE": 2}
 _ANCHOR_RANK = {"PASS": 0, "UNVERIFIABLE": 1, "REFUSE": 2}
@@ -177,6 +178,29 @@ def _cmd_verify_markdown(args) -> int:
     return _RANK.get(_worst(results), 1)
 
 
+def _cmd_prove(args) -> int:
+    """Proof-carrying: RUN the claim's `proof` command and check the number reproduces.
+    Exit = verdict (0 PASS · 2 REFUSE). A PASS means *reproduced*, not *profitable*."""
+    claim = _load_claim(
+        Path(args.claim_file).read_text(encoding="utf-8") if args.claim_file else args.claim)
+    r = prove(claim, cwd=args.cwd, timeout=args.timeout, tolerance=args.tolerance)
+    print(format_prove_block(r))
+    return _RANK.get(r["verdict"], 1)
+
+
+def _cmd_prove_batch(args) -> int:
+    """Prove a JSONL backlog of proof-carrying claims; exit = the worst verdict."""
+    claims = [_load_claim(ln) for ln in Path(args.path).read_text(encoding="utf-8").splitlines()
+              if ln.strip()]
+    results = prove_batch(claims, cwd=args.cwd, timeout=args.timeout)
+    counts = {v: sum(1 for r in results if r["verdict"] == v) for v in ("PASS", "REFUSE")}
+    print(f"verity prove-batch — {len(results)} claim(s): "
+          f"{counts['PASS']} PASS · {counts['REFUSE']} REFUSE")
+    for r in results:
+        print(format_prove_block(r))
+    return _RANK.get(_worst(results), 1)
+
+
 def _cmd_serve(args) -> int:  # pragma: no cover — blocking server entrypoint
     """Run verify-as-a-service over HTTP (blocking; Ctrl-C to stop)."""
     _server.run(port=args.port)
@@ -228,6 +252,26 @@ def main(argv=None) -> int:
                     help="independent sources required to corroborate a PASS (default 1)")
     pg.add_argument("--ledger", metavar="PATH", help="optional append-only audit ledger to log to")
     pg.set_defaults(func=_cmd_ground)
+
+    pp = sub.add_parser("prove", help="proof-carrying: RUN the claim's `proof` command and check "
+                                      "the number actually reproduces (exit 0 PASS · 2 REFUSE)")
+    gp = pp.add_mutually_exclusive_group(required=True)
+    gp.add_argument("--claim", metavar="JSON", help="the claim, carrying a `proof` command + `value`")
+    gp.add_argument("--claim-file", metavar="PATH", help="read the claim from a file")
+    pp.add_argument("--cwd", metavar="PATH", help="working dir to run the proof command in (default: .)")
+    pp.add_argument("--timeout", type=float, default=600.0, metavar="SECONDS",
+                    help="kill the proof command after this long (default 600)")
+    pp.add_argument("--tolerance", type=float, metavar="ABS",
+                    help="absolute tolerance for the match (overrides the claim's `tolerance`)")
+    pp.set_defaults(func=_cmd_prove)
+
+    ppb = sub.add_parser("prove-batch", help="prove a JSONL backlog of proof-carrying claims; "
+                                             "exit code = the worst verdict")
+    ppb.add_argument("path", metavar="CLAIMS.jsonl", help="one proof-carrying claim per line")
+    ppb.add_argument("--cwd", metavar="PATH", help="working dir to run each proof command in")
+    ppb.add_argument("--timeout", type=float, default=600.0, metavar="SECONDS",
+                     help="per-command timeout (default 600)")
+    ppb.set_defaults(func=_cmd_prove_batch)
 
     pe = sub.add_parser("eval", help="run the self-authored known-failure-mode regression harness "
                                      "(circular by construction — prints an honesty banner)")

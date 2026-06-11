@@ -16,6 +16,7 @@ from .audit import AuditChain, entry_hash
 from .decorators import verified
 from .gate import check, format_block, format_verify_block, load_truth
 from .markdown import extract_claims, verify_markdown
+from .prove import prove, prove_batch, extract_value, format_prove_block
 from .slack import notify_slack
 from .testing import assert_verified
 from .verify import verify
@@ -23,4 +24,5 @@ from .verify import verify
 __version__ = "0.1.0"
 __all__ = ["check", "load_truth", "format_block", "format_verify_block", "verify",
            "assert_verified", "verified", "extract_claims", "verify_markdown",
+           "prove", "prove_batch", "extract_value", "format_prove_block",
            "notify_slack", "AuditChain", "entry_hash"]

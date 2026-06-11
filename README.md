@@ -135,6 +135,7 @@ pip install "git+https://github.com/StellarRequiem/verity-core"
 verity check       --claim '{"accuracy":0.92,"sample_size":40}'   # one claim → REFUSE/WARN/PASS
 verity check-batch claims.jsonl                                   # a backlog → rolled-up verdict
 verity check-batch claims.jsonl --truth truths/trading.yaml       # tuned to your domain (see truths/)
+verity prove-batch proofs.jsonl                                   # RUN each proof; number must reproduce
 ```
 
 Ready-made **domain packs** live in [`truths/`](truths/) — `ml-classification`, `trading`,
@@ -194,6 +195,33 @@ It reaches into a **notebook** and **Slack** too:
 %load_ext verity.jupyter                 # then  %%verity  gates a claim cell inline
 from verity import notify_slack           # post a REFUSE / WARN / PASS to a Slack webhook
 ```
+
+## Proof-carrying claims — `verity prove`
+
+`check`/`verify` ask *is this number statistically trustworthy?* and `ground` asks *does it match
+the live source?* — but none of them **re-derive** the number. `prove` does: a claim carries a
+re-runnable `proof` command, and the gate **runs it and asserts the number actually reproduces.**
+
+```sh
+# proofs.jsonl — each claim ships the command that produces its number
+{"name": "demo-classifier accuracy", "metric": "accuracy", "value": 0.9,
+ "proof": "python examples/eval_demo.py", "tolerance": 0.001}
+
+verity prove-batch examples/proofs.jsonl     # CI runs each proof; exit 0 PASS · 2 REFUSE
+#   [PASS  ] demo-classifier accuracy  —  reproduced 0.9 ≈ claimed 0.9 (±0.001)
+```
+
+Bump that `0.9` to `0.97` without re-running the eval and CI **fails the build**:
+
+```
+[REFUSE] inflated  —  reproduced 0.9 ≠ claimed 0.97 (Δ=0.07 > ±0.001)
+```
+
+The proof command prints the value as JSON (`{"accuracy": 0.9}`), a labelled line (`accuracy: 0.9`),
+or just the headline number; `prove` extracts and compares it. **Security:** `prove` *executes* each
+claim's `proof` — they're your own recipes, run in your own CI like your test suite. It is not a
+sandbox; never point it at an untrusted claims file. (For that reason `prove` is CLI/CI-only — it is
+deliberately **not** an MCP tool.) This repo gates its own `examples/proofs.jsonl` in CI.
 
 ## What it checks
 
