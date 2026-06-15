@@ -17,7 +17,7 @@ verity-core already provides the two hardest pieces; the anchor adds the one mis
 | Layer | Where | Role |
 |---|---|---|
 | **Comparator** | `verity.verify` (existing) | **Pure, deterministic, NO I/O.** Reconciles a claim against *resolved* facts. GROUNDING: a source asserting a different value → CRITICAL → REFUSE. |
-| **Ledger** | `verity.audit.AuditChain` (existing) | Hash-chained, append-only, tamper-evident. `verify()` catches any after-the-fact edit. |
+| **Ledger** | `verity.audit.AuditChain` (existing) | Hash-chained, append-only. `verify()` catches any after-the-fact edit (integrity); tamper-evident when HMAC-keyed (`key=…`) or anchored (`head()`). |
 | **Anchor** | `verity.anchor` (**new**) | The **I/O layer**: `Source.fetch()` pulls live truth from the running system → feeds `verify()` → cross-source policy → logs to the ledger. No LLM in the loop. |
 
 **Why this works at scale:** the verifier never asks a model, only the running system; the grader is

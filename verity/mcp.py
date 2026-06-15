@@ -60,7 +60,7 @@ def build_server():
 
     @server.tool()
     def audit_verify(path: str) -> str:
-        """Verify a hash-chained audit log is intact / tamper-evident."""
+        """Verify a hash-chained audit log is intact (integrity; tamper-evident only when keyed/anchored)."""
         ok, msg = AuditChain(path).verify()
         return f"{'OK' if ok else 'BROKEN'}: {msg}"
 
