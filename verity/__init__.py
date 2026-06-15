@@ -1,7 +1,8 @@
 """verity-core — the verification primitive.
 
 A Reality Anchor that refuses to believe unverified result-claims, plus a
-tamper-evident, append-only audit chain. The same discipline, in one place.
+hash-linked, append-only audit chain — integrity by default, tamper-evident
+when HMAC-keyed or externally anchored. The same discipline, in one place.
 
 As a library::
 
@@ -12,7 +13,7 @@ As an MCP tool (any agent can call the gate to check itself)::
 
     verity-mcp        # console script — register in .mcp.json
 """
-from .audit import AuditChain, entry_hash
+from .audit import AuditChain, entry_hash, entry_hmac
 from .decorators import verified
 from .gate import check, format_block, format_verify_block, load_truth
 from .markdown import extract_claims, verify_markdown
@@ -25,4 +26,4 @@ __version__ = "0.1.0"
 __all__ = ["check", "load_truth", "format_block", "format_verify_block", "verify",
            "assert_verified", "verified", "extract_claims", "verify_markdown",
            "prove", "prove_batch", "extract_value", "format_prove_block",
-           "notify_slack", "AuditChain", "entry_hash"]
+           "notify_slack", "AuditChain", "entry_hash", "entry_hmac"]
