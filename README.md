@@ -270,6 +270,48 @@ The threat model is inherited from `AuditChain` unchanged: unkeyed is integrity,
 tamper-evidence. `audit.py` is untouched by all of this — its on-disk format is
 byte-for-byte what it was, and existing chains keep verifying exactly as before.
 
+## Counting sources, not voices — `verity.quorum`
+
+One rule has lived in prose in every version of the protocol and been enforced by
+memory: *corroboration needs real, independent sources — not two instances of the same
+model in different hats.* Memory is the wrong place for it. Asking one model twice feels
+like agreement and costs almost nothing, and "two instances agreed" reads identically to
+"two sources agreed".
+
+```python
+from verity.quorum import Source, Signal, Kind, assess
+
+a = Source("claude-a", Kind.MODEL, model="claude-opus-5")
+b = Source("claude-b", Kind.MODEL, model="claude-opus-5")
+assess([Signal(a, True), Signal(b, True)]).state      # INSUFFICIENT — one source
+assess([Signal(a, True), Signal(tool, True)]).state   # CORROBORATED — two
+```
+
+Model instances collapse by model name; humans, tools and external parties each count
+in full, because two independent measurements genuinely are two measurements. Weights
+collapse the same way, or the fold would be cosmetic — three instances of one model
+shouting still weighs one source. Every collapse is named in `explain()`, so the number
+is auditable rather than taken on trust.
+
+**Cross-inhibition.** When scouts disagree, a colony does not merely advertise harder —
+it delivers stop signals that decrement a rival directly. Without that a swarm can
+deadlock between two good options forever, and for a colony indecision is the fatal
+outcome. An advisory `ALERT` nobody must act on *is* the deadlock, so a stop signal here
+can end a pursuit: past the halt threshold the state is `HALTED`, and further support
+does not revive it. Reviving takes an explicit, attributed `revive()` with a reason —
+a pursuit that quietly resumes was never stopped.
+
+The veto cannot be manufactured, either: weak stop signals from three instances of one
+model still weigh one source, which is the same asymmetry the independence rule exists
+to prevent.
+
+**The disanalogy, stated rather than papered over.** Bee cooperation is underwritten by
+shared genes — a worker has no separate interest, so a stop signal can be trusted.
+Agents have no such guarantee, and nothing prevents a source inhibiting a rival's claim
+*because* it is a rival. Verifiable provenance is the substitute and only a partial one:
+this weighs who is speaking and can be told a source is compromised, but it cannot
+detect a plausible liar.
+
 ## What it checks
 
 - **structural** — sample floors (too small = noise), suspicious **and impossible** accuracy
