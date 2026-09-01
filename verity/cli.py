@@ -306,8 +306,61 @@ def main(argv=None) -> int:
     pd.add_argument("--json", action="store_true", help="machine-readable")
     pd.set_defaults(func=_cmd_dag)
 
+    pa = sub.add_parser("attest", help="check portable provenance on a claim: can an "
+                                       "outsider verify it, with no credentials and "
+                                       "without running anything?")
+    pa.add_argument("path", help="an attestation (.json) or a batch of them (.jsonl); "
+                                 "'-' reads stdin")
+    pa.add_argument("--json", action="store_true", help="machine-readable")
+    pa.set_defaults(func=_cmd_attest)
+
     args = p.parse_args(argv)
     return args.func(args)
+
+
+def _cmd_attest(args) -> int:
+    """Check whether a stranger could verify these claims. Executes nothing.
+
+    Exit 0 iff every attestation is checkable. This is the whole beacon surface: it
+    cannot tell you a claim is TRUE, only that it is pinned well enough that lying
+    would survive exactly until one reader looks.
+    """
+    from .attest import check_batch
+
+    raw = sys.stdin.read() if args.path == "-" else \
+        Path(args.path).read_text(encoding="utf-8")
+    raw = raw.strip()
+    if not raw:
+        print("error: empty input", file=sys.stderr)
+        return 2
+    try:
+        loaded = json.loads(raw)
+        atts = loaded if isinstance(loaded, list) else [loaded]
+    except json.JSONDecodeError:
+        atts = [json.loads(ln) for ln in raw.splitlines() if ln.strip()]
+
+    ok, reports = check_batch(atts)
+
+    if args.json:
+        print(json.dumps({"ok": ok, "count": len(atts), "results": [
+            {"index": i, "ok": r.ok, "claim": atts[i].get("claim"),
+             "reasons": r.reasons, "warnings": r.warnings} for i, r in reports]},
+            indent=2))
+        return 0 if ok else 1
+
+    for i, r in reports:
+        name = str(atts[i].get("claim", f"#{i}"))[:60]
+        print(f"[{'CHECKABLE' if r.ok else '  REFUSED'}] {name}")
+        for x in r.reasons:
+            print(f"             ✗ {x}")
+        for x in r.warnings:
+            print(f"             ! {x}")
+    print()
+    print(f"VERIFIED — {len(atts)} attestation(s) checkable by an outsider, "
+          f"no credentials and nothing executed" if ok
+          else f"GATE FAILED — {sum(1 for _, r in reports if not r.ok)} of {len(atts)} "
+               f"cannot be checked by anyone but their author")
+    return 0 if ok else 1
 
 
 def _cmd_dag(args) -> int:

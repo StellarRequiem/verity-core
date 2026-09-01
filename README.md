@@ -223,6 +223,48 @@ claim's `proof` — they're your own recipes, run in your own CI like your test 
 sandbox; never point it at an untrusted claims file. (For that reason `prove` is CLI/CI-only — it is
 deliberately **not** an MCP tool.) This repo gates its own `examples/proofs.jsonl` in CI.
 
+## Portable provenance — `verity attest`
+
+`prove` closes the loop for the *author*: a claim carries a re-runnable command and the
+gate runs it. That does not travel. `python3 examples/eval_demo.py` means nothing to
+someone who does not have the repository at the revision the number came from — and the
+harder problem underneath is that running a stranger's command is trusting a stranger's
+code. `prove` says so itself: it is not a sandbox.
+
+So the layer that travels is the one needing **no execution at all**:
+
+```sh
+verity attest examples/attestations.jsonl
+#   [CHECKABLE] demo-classifier accuracy reproduces from source
+#   VERIFIED — 1 attestation(s) checkable by an outsider, no credentials, nothing executed
+```
+
+An attestation pins what was claimed, which repository at which **immutable** commit
+produced it, and the command that would reproduce it — then commits to all of it with a
+content hash. Checking needs no network, no credentials and no interpreter.
+
+What makes fabrication expensive is what gets **refused**, not what gets warned about:
+
+| refused | why |
+|---|---|
+| `commit: main` | a claim pinned to a branch is pinned to nothing — it can move under the reader *after* they check it |
+| `repo: /Users/someone/project` | unreachable by anyone not on that machine |
+| `proof: python3 /Users/…/eval.py` | the command cannot run anywhere but where it was written |
+| an edited record | the digest no longer matches its contents |
+
+One warning earned the hard way: a proof invoking `python` rather than `python3` passes
+in CI, where `setup-python` provides both, and fails on a machine that has only
+`python3` — which is most of them. This repo's own example proof had exactly that bug
+and had it since June; the check exists because finding it took running the thing on a
+clean machine rather than reading it.
+
+**What this is not.** It is not a signature. An unkeyed digest proves the record is
+internally consistent, not that it came from who it says — anyone can mint an
+attestation naming any repository. What they cannot do is make the pinned commit contain
+a result it does not contain, so a fabrication survives exactly until one reader looks.
+For a public record that is the property that matters, and the output says so rather
+than implying more.
+
 ## Many writers — `verity dag`
 
 `AuditChain` is a line: each entry names the one before it by hash and carries a `seq`,
