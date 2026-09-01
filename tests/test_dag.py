@@ -273,3 +273,76 @@ def test_the_linear_chain_breaks_under_the_same_load(tmp_path, writers, each):
     ok, msg = AuditChain(p).verify()
     assert not ok
     assert "seq mismatch" in msg or "broken link" in msg
+
+
+# ---------------------------------------------------------------- cli surface
+
+def _build(p: Path, conflicting: bool):
+    c = MergeableChain(p)
+    root = c.append("open", {"note": "scan"}, "coordinator")["node_hash"]
+    c.append("claim", {"subject": "edges", "value": 17}, "agent-a", parents=[root])
+    if conflicting:
+        c.append("claim", {"subject": "edges", "value": 22}, "agent-b", parents=[root])
+    else:
+        c.append("claim", {"subject": "pins", "value": 26}, "agent-b", parents=[root])
+    return c
+
+
+def test_cli_reports_intact_and_exits_zero_when_nothing_is_contended(tmp_path, capsys):
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=False)
+    assert main(["dag", str(p), "--conflicts-on", "subject"]) == 0
+    out = capsys.readouterr().out
+    assert "INTACT" in out and "contended on 'subject': none" in out
+
+
+def test_cli_fails_on_a_contended_claim_but_still_reports_integrity(tmp_path, capsys):
+    """The distinction the exit code has to carry: the chain is sound AND the state
+    needs a person. Collapsing those into one boolean loses the useful half."""
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=True)
+    assert main(["dag", str(p), "--conflicts-on", "subject"]) == 1
+    out = capsys.readouterr().out
+    assert "INTACT" in out                      # integrity held
+    assert "surfaced, not resolved" in out      # and the conflict is the failure
+    assert "GATE FAILED" in out
+
+
+def test_cli_does_not_fail_on_a_fork_alone(tmp_path, capsys):
+    """Concurrency is the point. Reporting it as a failure would make the gate
+    unusable by the colony it was built for."""
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=False)
+    assert main(["dag", str(p)]) == 0
+    assert "forked" in capsys.readouterr().out
+
+
+def test_cli_json_separates_integrity_from_contention(tmp_path, capsys):
+    import json as _json
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=True)
+    main(["dag", str(p), "--conflicts-on", "subject", "--json"])
+    d = _json.loads(capsys.readouterr().out)
+    assert d["integrity"] is True and d["ok"] is False and len(d["contended"]) == 1
+
+
+def test_cli_reports_broken_integrity(tmp_path, capsys):
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=False)
+    p.write_text(p.read_text().replace('"value": 17', '"value": 99'))
+    assert main(["dag", str(p)]) == 1
+    assert "BROKEN" in capsys.readouterr().out
+
+
+def test_cli_inspecting_never_writes(tmp_path):
+    from verity.cli import main
+    p = tmp_path / "c.jsonl"
+    _build(p, conflicting=True)
+    before = p.read_bytes()
+    main(["dag", str(p), "--conflicts-on", "subject"])
+    assert p.read_bytes() == before

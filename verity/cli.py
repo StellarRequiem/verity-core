@@ -295,8 +295,72 @@ def main(argv=None) -> int:
     ps.add_argument("--port", type=int, default=8848, help="port to bind (default 8848)")
     ps.set_defaults(func=_cmd_serve)
 
+    pd = sub.add_parser("dag", help="inspect a mergeable (multi-writer) audit chain: "
+                                    "integrity, forks, and contended claims")
+    pd.add_argument("path", help="path to the DAG chain (.jsonl)")
+    pd.add_argument("--conflicts-on", metavar="FIELD",
+                    help="report concurrent nodes claiming the same value of this "
+                         "event_data field; they are surfaced, never resolved")
+    pd.add_argument("--min-nodes", type=int,
+                    help="fail if the chain holds fewer nodes than this (truncation)")
+    pd.add_argument("--json", action="store_true", help="machine-readable")
+    pd.set_defaults(func=_cmd_dag)
+
     args = p.parse_args(argv)
     return args.func(args)
+
+
+def _cmd_dag(args) -> int:
+    """Report a mergeable chain. Exit 0 iff integrity holds AND nothing is contended.
+
+    A fork on its own is not a failure — concurrency is the point — so it is reported
+    and does not sink the exit code. A contended claim does: two agents asserting
+    different things about the same subject, neither having seen the other, is a state
+    that needs a person, and an exit code is how a gate says so.
+    """
+    from .dag import MergeableChain
+
+    chain = MergeableChain(args.path)
+    ok, msg = chain.verify(min_nodes=args.min_nodes)
+    nodes, tips = chain.nodes(), chain.tips()
+    contended = []
+    if args.conflicts_on:
+        field = args.conflicts_on
+        for a, b in chain.conflicts(lambda n: n.event_data.get(field)):
+            contended.append({
+                "subject": a.event_data.get(field),
+                "a": {"node": a.hash[:12], "actor": a.actor, "data": a.event_data},
+                "b": {"node": b.hash[:12], "actor": b.actor, "data": b.event_data},
+            })
+
+    if args.json:
+        print(json.dumps({"ok": ok and not contended, "integrity": ok, "message": msg,
+                          "nodes": len(nodes), "tips": [t[:12] for t in tips],
+                          "forked": len(tips) > 1, "contended": contended}, indent=2))
+        return 0 if (ok and not contended) else 1
+
+    print(f"chain    : {args.path}")
+    print(f"integrity: {'INTACT' if ok else 'BROKEN'} — {msg}")
+    print(f"nodes    : {len(nodes)}")
+    print(f"tips     : {len(tips)}" + ("  (forked — concurrent, not corrupt)"
+                                       if len(tips) > 1 else ""))
+    for t in tips:
+        n = nodes[t]
+        print(f"           {t[:12]}  {n.actor}  {n.event_type}")
+    if args.conflicts_on:
+        if contended:
+            print(f"\ncontended on {args.conflicts_on!r}: {len(contended)} "
+                  f"— surfaced, not resolved")
+            for c in contended:
+                print(f"  {c['subject']!r}:")
+                print(f"    {c['a']['actor']:<12} {c['a']['node']}  {c['a']['data']}")
+                print(f"    {c['b']['actor']:<12} {c['b']['node']}  {c['b']['data']}")
+        else:
+            print(f"\ncontended on {args.conflicts_on!r}: none")
+    print()
+    print("VERIFIED — integrity holds, nothing contended" if (ok and not contended)
+          else "GATE FAILED — " + ("integrity broken" if not ok else "contended claims"))
+    return 0 if (ok and not contended) else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

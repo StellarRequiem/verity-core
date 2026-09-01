@@ -223,6 +223,53 @@ claim's `proof` — they're your own recipes, run in your own CI like your test 
 sandbox; never point it at an untrusted claims file. (For that reason `prove` is CLI/CI-only — it is
 deliberately **not** an MCP tool.) This repo gates its own `examples/proofs.jsonl` in CI.
 
+## Many writers — `verity dag`
+
+`AuditChain` is a line: each entry names the one before it by hash and carries a `seq`,
+so integrity and *ordering* are the same guarantee. That is right for one writer, and
+its own docstring says to honour the single-writer rule. Two processes reading the same
+tip both produce `seq` N with the same `prev_hash`, and `verify()` correctly calls the
+result broken. The lock is not protecting the data — it is protecting the shape.
+
+No amount of care makes a line concurrent, so `MergeableChain` changes the shape. A node
+names every parent its writer actually saw, and the chain becomes a DAG. Each node still
+commits to its parents by hash, so no ancestor can be edited without breaking every
+descendant. What is given up is total order, which was never real. What is gained is
+that two agents writing at the same instant produce a **fork** — a legitimate recorded
+state rather than corruption.
+
+Measured, with the linear chain kept as the control in the same test file:
+
+| 8 processes × 25 writes | lines | `verify()` |
+|---|---|---|
+| `AuditChain` | 200 | **BROKEN** — seq mismatch at index 28 |
+| `MergeableChain` | 200 | **INTACT** — 200 nodes, nothing lost |
+
+```
+verity dag path/to/chain.jsonl --conflicts-on subject
+```
+
+Exit `0` only when integrity holds **and** nothing is contended. A fork on its own does
+not sink the exit code — concurrency is the point, and a gate that failed on it would be
+unusable by the thing it was built for. A *contended* claim does: two agents asserting
+different things about the same subject, neither having seen the other, is a state that
+needs a person.
+
+Three deliberate refusals:
+
+- **`append` never auto-merges.** It records the tips the writer actually read. Merging
+  on the next write would have one agent silently assert it had seen work it never saw,
+  and inventing causality is worse than an unmerged fork — the fork is visible.
+- **It does not decide what a conflict is.** A fork is concurrency, not disagreement.
+  Two agents recording unrelated findings at the same moment contend about nothing, so
+  `conflicts()` takes a key function from the caller rather than guessing the domain.
+- **It does not resolve one.** `conflicts()` returns pairs. A resolution that happens
+  automatically is a resolution nobody reviewed.
+
+The threat model is inherited from `AuditChain` unchanged: unkeyed is integrity, not
+tamper-evidence. `audit.py` is untouched by all of this — its on-disk format is
+byte-for-byte what it was, and existing chains keep verifying exactly as before.
+
 ## What it checks
 
 - **structural** — sample floors (too small = noise), suspicious **and impossible** accuracy
