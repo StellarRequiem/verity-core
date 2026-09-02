@@ -346,3 +346,122 @@ def test_cli_inspecting_never_writes(tmp_path):
     before = p.read_bytes()
     main(["dag", str(p), "--conflicts-on", "subject"])
     assert p.read_bytes() == before
+
+
+# ------------------------------------------------- linear bridge: concurrency != damage
+
+from verity.audit import entry_hash as _lin_hash
+from verity.dag import linear_nodes, verify_linear
+
+
+def _rec(seq, prev, actor="agent", et="event", ed=None):
+    ed = {} if ed is None else ed
+    return {"seq": seq, "prev_hash": prev, "actor": actor, "event_type": et,
+            "event_data": ed, "timestamp": "",
+            "entry_hash": _lin_hash(seq, prev, actor, et, ed)}
+
+
+def _linear(n):
+    rows, prev = [], GENESIS
+    for i in range(n):
+        r = _rec(i, prev, ed={"i": i})
+        rows.append(r)
+        prev = r["entry_hash"]
+    return rows
+
+
+def test_a_clean_linear_chain_reads_as_linear():
+    ok, msg, info = verify_linear(_linear(5))
+    assert ok and "linear" in msg and len(info["tips"]) == 1
+
+
+def test_a_three_way_fork_is_intact_not_broken():
+    """The real case. AuditChain.verify() calls this BROKEN because three records
+    share a seq; under DAG rules they are three children of one parent and nothing
+    is wrong with the data."""
+    rows = _linear(3)
+    parent = rows[-1]["entry_hash"]
+    rows += [_rec(3, parent, ed={"w": w}) for w in ("a", "b", "c")]
+    ok, msg, info = verify_linear(rows)
+    assert ok
+    assert len(info["forks"]) == 1
+    assert len(next(iter(info["forks"].values()))) == 3
+    assert "3-way" in msg
+
+
+def test_the_same_chain_is_reported_broken_by_the_linear_verifier(tmp_path):
+    """The control: this is not a difference of opinion about a healthy chain — the
+    linear model genuinely refuses it, and that refusal is what the DAG model fixes."""
+    import json
+    rows = _linear(3)
+    parent = rows[-1]["entry_hash"]
+    rows += [_rec(3, parent, ed={"w": w}) for w in ("a", "b", "c")]
+    p = tmp_path / "c.jsonl"
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    ok, msg = AuditChain(p).verify()
+    assert not ok and "seq" in msg
+    assert verify_linear(rows)[0]          # same bytes, intact under DAG rules
+
+
+def test_the_live_head_is_file_order_not_alphabetical():
+    """A bug this code shipped with. Picking the alphabetically-last tip names the
+    wrong branch abandoned, which is worse than naming none — it asserts that real
+    work was discarded."""
+    rows = _linear(2)
+    parent = rows[-1]["entry_hash"]
+    branches = [_rec(2, parent, ed={"w": w}) for w in ("a", "b", "c")]
+    branches.sort(key=lambda r: r["entry_hash"])      # write them in hash order
+    rows += branches
+    _, _, info = verify_linear(rows)
+    assert info["head"] == rows[-1]["entry_hash"]
+    assert len(info["abandoned"]) == 2
+    assert info["head"] not in info["abandoned"]
+
+
+def test_a_continued_branch_is_not_a_tip():
+    rows = _linear(2)
+    parent = rows[-1]["entry_hash"]
+    a, b = _rec(2, parent, ed={"w": "a"}), _rec(2, parent, ed={"w": "b"})
+    rows += [a, b, _rec(3, b["entry_hash"], ed={"after": True})]
+    _, _, info = verify_linear(rows)
+    assert b["entry_hash"] not in info["tips"]        # b was built on
+    assert a["entry_hash"] in info["tips"]            # a was abandoned
+
+
+def test_tampering_is_still_caught():
+    rows = _linear(4)
+    rows[1]["event_data"] = {"i": 999}
+    ok, msg, _ = verify_linear(rows)
+    assert not ok and "tampered" in msg
+
+
+def test_a_dangling_parent_is_still_caught():
+    rows = _linear(3)
+    rows.append(_rec(3, "f" * 64))
+    ok, msg, _ = verify_linear(rows)
+    assert not ok and "dangling parent" in msg
+
+
+def test_a_malformed_record_is_caught():
+    ok, msg, _ = verify_linear([{"seq": 0}])
+    assert not ok and "malformed" in msg
+
+
+def test_an_empty_chain_verifies():
+    ok, _, info = verify_linear([])
+    assert ok and info["nodes"] == 0
+
+
+def test_linear_nodes_reads_prev_hash_as_the_single_parent():
+    rows = _linear(3)
+    nodes = linear_nodes(rows)
+    assert nodes[rows[1]["entry_hash"]].parents == (rows[0]["entry_hash"],)
+    assert nodes[rows[0]["entry_hash"]].is_root
+
+
+def test_the_bridge_writes_nothing():
+    rows = _linear(3)
+    before = [dict(r) for r in rows]
+    verify_linear(rows)
+    linear_nodes(rows)
+    assert rows == before

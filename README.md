@@ -312,6 +312,31 @@ The threat model is inherited from `AuditChain` unchanged: unkeyed is integrity,
 tamper-evidence. `audit.py` is untouched by all of this — its on-disk format is
 byte-for-byte what it was, and existing chains keep verifying exactly as before.
 
+### Reading an existing linear chain as a DAG
+
+`verify_linear(rows)` reads records written by `AuditChain` under DAG rules, without
+converting or rewriting anything. It exists because of a real chain this refused:
+
+```
+AuditChain.verify()  →  BROKEN ✗ seq mismatch at index 463
+verify_linear(rows)  →  intact: 487 records, 1 concurrent write (widest 3-way),
+                                2 abandoned branch(es)
+```
+
+Same 487 bytes-on-disk records. Three of them shared `seq` 462 — and all three named
+the same `prev_hash`, every `entry_hash` recomputed, and a later record continued one
+of the branches. Three children of one parent. Nothing was damaged; the data simply
+never fitted the shape the verifier demanded.
+
+That distinction is the entire point. Reported as "BROKEN", the apparent remedy is to
+renumber `seq` until the walk passes — rewriting an append-only audit chain to satisfy
+a model it never matched, which is the one thing such a chain must never suffer. Read
+as a DAG, nothing needs repairing and nothing is written.
+
+Concurrency is surfaced rather than swallowed: the message names the fork points, the
+abandoned branches and the live head. Tampering, dangling parents and malformed
+records are still refused exactly as before.
+
 ## Counting sources, not voices — `verity.quorum`
 
 One rule has lived in prose in every version of the protocol and been enforced by

@@ -45,7 +45,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from .audit import GENESIS, _now_iso
+from .audit import GENESIS, _now_iso, entry_hash
 
 #: fields every well-formed node carries
 NODE_FIELDS = frozenset(
@@ -276,3 +276,89 @@ class MergeableChain:
             return False, f"tip mismatch: expected {len(expected_tips)}, got {len(tips)}"
         shape = "linear" if len(tips) <= 1 else f"forked into {len(tips)} tips"
         return True, f"intact: {len(ns)} nodes, {shape}"
+
+
+# ------------------------------------------------------------------ linear bridge
+
+#: the fields a well-formed linear ``AuditChain`` record carries
+LINEAR_FIELDS = frozenset(
+    {"seq", "prev_hash", "actor", "event_type", "event_data", "entry_hash"})
+
+def linear_nodes(rows: list[dict]) -> dict[str, Node]:
+    """Read linear ``AuditChain`` records as DAG nodes. Pure; nothing is written.
+
+    A linear record already carries everything a node needs: ``entry_hash`` is its
+    content address and ``prev_hash`` is its single parent. The only thing the linear
+    format adds is ``seq``, an assertion of total order — and that assertion is the
+    part that breaks under concurrency, not the data.
+    """
+    return {
+        r["entry_hash"]: Node(
+            hash=r["entry_hash"], parents=(r["prev_hash"],), actor=r["actor"],
+            event_type=r["event_type"], event_data=r["event_data"],
+            timestamp=r.get("timestamp", ""))
+        for r in rows
+    }
+
+
+def verify_linear(rows: list[dict]) -> tuple[bool, str, dict]:
+    """Verify a linear chain under DAG rules, and say what shape it is really in.
+
+    This exists because of a real chain that ``AuditChain.verify()`` called BROKEN.
+    Three records shared ``seq`` 462 — and all three shared one ``prev_hash``, every
+    ``entry_hash`` recomputed, and a later record continued one of the branches. That
+    is not corruption. It is three writers who read the same tip, which the linear
+    model has no way to express and therefore reports as damage.
+
+    The distinction matters more than it looks. Calling concurrency "corruption"
+    means the fix appears to be *repairing* the file — renumbering ``seq`` until the
+    walk passes — which would rewrite an append-only audit chain to satisfy a model
+    it never fitted. Under DAG rules nothing needs repairing, and nothing is written.
+
+    Returns ``(ok, message, info)`` where ``info`` names the tips, so abandoned
+    branches are visible rather than merely not-fatal.
+    """
+    # Validate every record's shape BEFORE reading any of them as nodes. Building
+    # first meant a record missing `entry_hash` raised KeyError instead of saying so,
+    # which turns a clear finding into a stack trace at exactly the moment a reader
+    # most needs a sentence.
+    for i, r in enumerate(rows):
+        missing = LINEAR_FIELDS - set(r)
+        if missing:
+            return False, f"malformed record at line {i}: missing {sorted(missing)}", {}
+        h = entry_hash(r["seq"], r["prev_hash"], r["actor"], r["event_type"],
+                       r["event_data"])
+        if h != r["entry_hash"]:
+            return False, f"hash mismatch at line {i} — tampered", {}
+
+    nodes = linear_nodes(rows)
+
+    for h, n in nodes.items():
+        for p in n.parents:
+            if p != GENESIS and p not in nodes:
+                return False, f"dangling parent {p[:12]}… referenced by {h[:12]}…", {}
+
+    claimed = {p for n in nodes.values() for p in n.parents}
+    tips = sorted(h for h in nodes if h not in claimed)
+    # A linear chain has one child per parent. More than one is a concurrent write.
+    children: dict[str, list[str]] = {}
+    for h, n in nodes.items():
+        for p in n.parents:
+            children.setdefault(p, []).append(h)
+    forks = {p: sorted(c) for p, c in children.items() if len(c) > 1}
+
+    # The live head is the record written last, which is file order — not the
+    # alphabetical last tip. Getting this wrong names the wrong branch abandoned,
+    # which is worse than not naming one at all.
+    head = rows[-1]["entry_hash"] if rows else ""
+    abandoned = sorted(t for t in tips if t != head)
+
+    info = {"nodes": len(nodes), "tips": tips, "forks": forks,
+            "head": head, "abandoned": abandoned}
+    if len(tips) <= 1:
+        shape = "linear"
+    else:
+        widest = max((len(c) for c in forks.values()), default=0)
+        shape = (f"{len(forks)} concurrent write(s) (widest {widest}-way), "
+                 f"{len(abandoned)} abandoned branch(es)")
+    return True, f"intact: {len(nodes)} records, {shape}", info
